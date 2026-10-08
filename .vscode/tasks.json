@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "试玩林间拾光",
+			"type": "shell",
+			"command": "& '${workspaceFolder}\\play\\ForestGlow.exe' --rendering-driver opengl3_angle --log-file '${workspaceFolder}\\qa\\desktop-task.log'",
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

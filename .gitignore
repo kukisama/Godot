@@ -1,0 +1,23 @@
+# Godot editor caches (keep asset .import settings and script .uid files).
+.godot/
+
+# Local QA outputs: logs, screenshots, state snapshots and analysis reports.
+# Test scripts in tests/ remain versioned.
+qa/
+
+# Exported games and build outputs, at any project depth.
+play/
+build/
+target/
+
+# Temporary files and Python tool caches.
+*.log
+*.tmp
+__pycache__/
+*.pyc
+
+# Local environment and Godot export credentials.
+.env
+.env.*
+!.env.example
+.godot/export_credentials.cfg

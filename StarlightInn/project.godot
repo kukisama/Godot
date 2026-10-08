@@ -1,0 +1,27 @@
+; Image 2.5 artwork was prepared before game implementation.
+config_version=5
+
+[application]
+config/name="星灯旅店 · Starlight Inn"
+config/description="A cozy fantasy inn with walkable pixel characters and local-only capability conversations."
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+config/icon="res://assets/sprites/crest.png"
+
+[display]
+window/size/viewport_width=1600
+window/size/viewport_height=1000
+window/size/window_width_override=1280
+window/size/window_height_override=800
+window/stretch/mode="viewport"
+window/stretch/aspect="keep"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+environment/defaults/default_clear_color=Color(0.012, 0.025, 0.035, 1)
+anti_aliasing/quality/msaa_3d=0
+
+[audio]
+driver/enable_input=false

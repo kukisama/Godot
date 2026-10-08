@@ -1,5 +1,16 @@
 # Godot Windows 开发环境安装记录
 
+## 小游戏：《林间拾光》
+
+2026-10-08 新增鼠标小游戏，用户已试玩确认“可以玩，还不错”。
+
+- 直接运行：[`play/ForestGlow.exe`](./play/ForestGlow.exe)。
+- Godot 项目：[`ForestGlow/project.godot`](./ForestGlow/project.godot)。
+- 玩法、生成素材、切图和测试说明：[`ForestGlow/README.md`](./ForestGlow/README.md)。
+- 以下为此前环境安装记录；安装脚本未因游戏开发修改。
+
+---
+
 安装日期：2026-10-08。脚本：[`Install-Godot.ps1`](./Install-Godot.ps1)。
 
 ## 本机安装结果
