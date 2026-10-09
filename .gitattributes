@@ -1,0 +1,2 @@
+# Godot rewrites asset import settings with LF; keep them stable on Windows.
+*.import text eol=lf

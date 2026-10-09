@@ -14,6 +14,19 @@
 			"command": "& '${workspaceFolder}\\play\\HollowBell.exe' --rendering-driver opengl3_angle --log-file '${workspaceFolder}\\HollowBell\\qa\\desktop-play.log'",
 			"isBackground": true,
 			"problemMatcher": []
+		},
+		{
+			"label": "试玩星灯旅店",
+			"type": "shell",
+			"command": "& '${workspaceFolder}\\StarlightInn\\Play.ps1'",
+			"problemMatcher": []
+		},
+		{
+			"label": "组装星灯旅店交付包",
+			"type": "shell",
+			"command": "$ErrorActionPreference = 'Stop'; $root = '${workspaceFolder}\\StarlightInn'; New-Item -ItemType Directory -Path \"$root\\play\\native\" -Force | Out-Null; Copy-Item \"$root\\qa\\native-build\\StarlightAzure.exe\" \"$root\\native\\StarlightAzure.exe\" -Force; Copy-Item \"$root\\qa\\native-build\\StarlightAzure.exe\" \"$root\\play\\native\\StarlightAzure.exe\" -Force; foreach ($doc in @('README.md','API.md','AAD_SETUP.md')) { Copy-Item \"$root\\$doc\" \"$root\\play\\$doc\" -Force }; if (-not (Test-Path \"$root\\play\\azure-settings.json\")) { Copy-Item \"$root\\azure-settings.json\" \"$root\\play\\azure-settings.json\" }; Compress-Archive -Path \"$root\\play\" -DestinationPath \"$root\\StarlightInn-Windows.zip\" -Force; Get-ChildItem \"$root\\play\" -Recurse -File | Format-Table Name,Length; Get-Item \"$root\\StarlightInn-Windows.zip\" | Format-Table Name,Length",
+			"isBackground": false,
+			"problemMatcher": []
 		}
 	]
 }

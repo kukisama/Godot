@@ -4,7 +4,17 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $out = Join-Path $root 'qa\native-build'
 New-Item -ItemType Directory -Path $out -Force | Out-Null
+New-Item -ItemType File -Path (Join-Path $out '.gdignore') -Force | Out-Null
 $vc = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat'
+if (-not (Test-Path -LiteralPath $vc)) {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (Test-Path -LiteralPath $vswhere) {
+        $installation = & $vswhere -latest -version '[17.0,18.0)' -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if ($LASTEXITCODE -eq 0 -and $installation) {
+            $vc = Join-Path $installation 'VC\Auxiliary\Build\vcvarsall.bat'
+        }
+    }
+}
 if (-not (Test-Path -LiteralPath $vc)) { throw 'Existing VS2022 x64 Build Tools required; no installation/configuration performed.' }
 $envLines = & cmd.exe /d /c "call `"$vc`" amd64 >nul && set"
 if ($LASTEXITCODE -ne 0) { throw 'vcvarsall failed' }
