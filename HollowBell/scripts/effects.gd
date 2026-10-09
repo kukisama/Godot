@@ -28,6 +28,7 @@ class EffectSlot extends RefCounted:
 	var floor_y: float = 0.0
 	var bounced: bool = false
 	var facing: int = 1
+	var rising: bool = false
 
 
 ## Optional. With no game assigned the node is usable in an isolated VFX scene.
@@ -83,7 +84,7 @@ func burst(pos: Vector3, tint: Color, count: int) -> void:
 		spark.node.rotation.z = atan2(spark.velocity.y, spark.velocity.x)
 
 
-func slash(pos: Vector3, facing: int, tint: Color, radius: float) -> void:
+func slash(pos: Vector3, facing: int, tint: Color, radius: float, rising: bool = false) -> void:
 	if not _valid_request(pos, tint) or not is_finite(radius) or radius <= 0.0 or not _can_emit():
 		return
 	var arc: EffectSlot = _acquire(Kind.SLASH, pos, tint, SLASH_LIFETIME, true)
@@ -93,6 +94,7 @@ func slash(pos: Vector3, facing: int, tint: Color, radius: float) -> void:
 		arc.arc_mesh = ImmediateMesh.new()
 	arc.node.mesh = arc.arc_mesh
 	arc.facing = -1 if facing < 0 else 1
+	arc.rising = rising
 	arc.base_scale = Vector3.ONE * clampf(radius, 0.08, 6.0)
 	arc.node.scale = arc.base_scale
 	_draw_slash(arc, 0.0)
@@ -216,6 +218,7 @@ func _acquire(kind: int, pos: Vector3, tint: Color, lifetime: float,
 	slot.base_scale = Vector3.ONE
 	slot.bounced = false
 	slot.facing = 1
+	slot.rising = false
 	slot.node.transform = Transform3D(Basis.IDENTITY, pos)
 	slot.node.visible = true
 	slot.material.albedo_color = slot.tint
@@ -266,8 +269,9 @@ func _draw_slash(slot: EffectSlot, progress: float) -> void:
 	var mesh: ImmediateMesh = slot.arc_mesh
 	mesh.clear_surfaces()
 	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-	# The leading edge travels top-to-bottom, mirrored for a leftward strike.
+	# Mirror X for facing and Y only for the authored rising return cut.
 	# Every vertex stays in the forward half-plane; no full-circle screen wash.
+	var vertical_sign: float = -1.0 if slot.rising else 1.0
 	var leading: float = lerpf(1.15, -1.30, smoothstep(0.0, 0.78, progress))
 	var trailing: float = minf(1.40, leading + lerpf(0.26, 1.85,
 		smoothstep(0.0, 0.25, progress)))
@@ -283,8 +287,8 @@ func _draw_slash(slot: EffectSlot, progress: float) -> void:
 			var thickness_b: float = sin(PI * pow(v, 0.55))
 			var inner_a: float = lerpf(band.y, band.x, thickness_a)
 			var inner_b: float = lerpf(band.y, band.x, thickness_b)
-			var direction_a: Vector3 = Vector3(cos(a) * float(slot.facing), sin(a) * 0.88, 0)
-			var direction_b: Vector3 = Vector3(cos(b) * float(slot.facing), sin(b) * 0.88, 0)
+			var direction_a: Vector3 = Vector3(cos(a) * float(slot.facing), sin(a) * 0.88 * vertical_sign, 0)
+			var direction_b: Vector3 = Vector3(cos(b) * float(slot.facing), sin(b) * 0.88 * vertical_sign, 0)
 			var z: Vector3 = Vector3(0, 0, depth)
 			_quad(mesh, direction_a * band.y + z, direction_b * band.y + z,
 				direction_b * inner_b + z, direction_a * inner_a + z,

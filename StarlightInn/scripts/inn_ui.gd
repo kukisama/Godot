@@ -7,6 +7,9 @@ signal close_requested
 signal guide_requested
 signal journal_requested
 signal fullscreen_requested
+signal audio_requested
+signal modal_closed
+signal azure_requested(npc: String)
 
 const Catalog = preload("res://scripts/npc_catalog.gd")
 const Dialogue = preload("res://scripts/dialogue.gd")
@@ -35,6 +38,9 @@ var send_button: Button
 var history_button: Button
 var input_counter: Label
 var request_hint: Label
+var audio_button: Button
+var azure_button: Button
+var azure_npc_button: Button
 var modal: Control
 var modal_body: RichTextLabel
 var modal_title: Label
@@ -81,7 +87,9 @@ func _build_hud() -> void:
 	_label(title, "星 灯 旅 店", Rect2(104, 15, 250, 40), 30, GOLD)
 	_label(title, "STARLIGHT INN  /  夜泊篇", Rect2(106, 61, 250, 22), 15, MUTED)
 	var status := _panel(self, Rect2(1134, 28, 438, 51), Color(0.025, 0.068, 0.08, 0.92), Color("426c69"))
-	_label(status, "●  本地演示  ·  未连接 AI / Azure", Rect2(18, 10, 408, 32), 19, Color("9cdfcd"))
+	_label(status, "●  离线演示保留 · AI 未连接", Rect2(18, 10, 408, 32), 19, Color("9cdfcd"))
+	azure_button = _button(self, "真实 Azure / 未连接", Rect2(1134, 149, 438, 70), func() -> void: azure_requested.emit("mira"), 17)
+	azure_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_button(self, "F1  旅店指南", Rect2(1150, 94, 205, 44), func() -> void: guide_requested.emit(), 18)
 	_button(self, "J  旅人手记", Rect2(1365, 94, 207, 44), func() -> void: journal_requested.emit(), 18)
 	var quest := _panel(self, Rect2(29, 151, 288, 88), Color(0.025, 0.068, 0.08, 0.78), Color("485c5a"))
@@ -108,6 +116,7 @@ func _build_hud() -> void:
 	var footer := _panel(self, Rect2(355, 950, 890, 36), Color(0.02, 0.05, 0.065, 0.88), Color("45524a"))
 	var hints := _label(footer, "WASD / 方向键  移动     ·     E  交谈     ·     鼠标点选行走     ·     Esc  返回", Rect2(10, 3, 870, 30), 17, CREAM)
 	hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	audio_button = _button(self, "M  声音：开", Rect2(1261, 950, 157, 36), func() -> void: audio_requested.emit(), 16)
 	_button(self, "F11  全屏", Rect2(1436, 950, 137, 36), func() -> void: fullscreen_requested.emit(), 16)
 
 
@@ -169,6 +178,8 @@ func _build_dialogue() -> void:
 	input_counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	history_button = _button(dialog_panel, "对话记录", Rect2(263, 334, 115, 24), func() -> void: journal_requested.emit(), 13)
 	request_hint = _label(dialog_panel, "", Rect2(401, 335, 453, 23), 13, MUTED)
+	azure_npc_button = _button(dialog_panel, "", Rect2(735, 33, 330, 38), func() -> void: azure_requested.emit(model.npc_id), 17)
+	azure_npc_button.visible = false
 
 
 func _build_modal() -> void:
@@ -220,6 +231,8 @@ func refresh() -> void:
 	npc_name.add_theme_color_override("font_color", npc.accent)
 	npc_title.text = "正在整理本地回信……" if model.busy else "聊一个话题，或把故事留到下一次。"
 	capability_label.text = npc.capability
+	azure_npc_button.visible = model.npc_id in ["mira", "oren", "eve"]
+	azure_npc_button.text = {"mira": "Azure 登记簿（真实）", "oren": "云务账簿（真实）", "eve": "真实资源鉴定", "finn": ""}.get(model.npc_id, "")
 	if _last_text != model.text:
 		_last_text = model.text
 		body.text = model.text
@@ -274,6 +287,8 @@ func show_guide() -> void:
 	modal_title.text = "旅店指南"
 	modal_body.text = "在星灯下，自由走走\n\nWASD / 方向键：移动。Shift：走快一点。\n鼠标点地面：绕开家具走过去；点住客：走近后自动交谈。\nE / Enter：与最近的住客交谈。1–4：选择当前话题。\nEsc：关闭手记或对话。J：查看手记。F11：切换全屏。\n\n米拉 · 旅店主人——旅店向导与小故事。\n奥伦 · 云务管家——示例虚拟机清单与关机流程预览。\n伊芙 · 星术鉴定师——示例资源属性与标签。\n菲恩 · 吟游诗人——故事、API 讲解与自由输入。\n\n本版仅预留能力接口，所有回复都在本机生成。\n没有连接 AI / Azure，也不会执行任何真实操作。"
 	modal_body.scroll_to_line(0)
+	modal_body.text = modal_body.text.replace("本版仅预留能力接口，所有回复都在本机生成。\n没有连接 AI / Azure，也不会执行任何真实操作。", "上面的原四话题仍为离线演示，菲恩自由输入是本地模板、未接 AI。\n右上角真实 Azure 或三位住客的独立入口：米拉登记应用、登录与选订阅；奥伦读取并操作真实 VM；伊芙鉴定同一真实资源。真实入口不是原离线关机预览。\n默认空 ClientId，不自动登录；WAM 首选，浏览器备用必须明确选择。启动/解除分配必须另行核对真实目标、影响与身份。详见 AAD_SETUP.md。")
+	modal_body.text += "\n\n声音默认开启。M：一键静音 / 恢复；输入文字时不会触发。\n木地板脚步、炉火、回信铃与鲁特琴短句均为原创合成。"
 	modal.visible = true
 	_release_focus()
 
@@ -303,8 +318,20 @@ func _release_focus() -> void:
 
 
 func hide_modal() -> void:
+	var was_visible: bool = modal.visible
 	modal.visible = false
 	modal_kind = ""
+	if was_visible:
+		modal_closed.emit()
+
+
+func set_muted(value: bool) -> void:
+	audio_button.text = "M  声音：关" if value else "M  声音：开"
+
+
+func set_azure_status(value: String) -> void:
+	azure_button.text = value
+	azure_button.tooltip_text = value
 
 
 func _process(delta: float) -> void:

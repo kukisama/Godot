@@ -14,6 +14,12 @@ void fragment() {
 	float edge = smoothstep(0.36, 1.25, length(centered * vec2(0.78, 0.90)));
 	float left = 1.0 - smoothstep(0.08, menu_edge, UV.x);
 	float shade = 1.0 - (1.0 - edge * vignette_strength) * (1.0 - left * menu_shade * 0.82);
+	// Soft edge gradients preserve readable UI over bright masonry and leaves
+	// without covering the character or turning the HUD into opaque panels.
+	float hud_top = (1.0 - smoothstep(0.04, 0.27, UV.y)) * 0.62;
+	float hud_bottom = smoothstep(0.72, 1.0, UV.y) * 0.76;
+	float hud_shade = max(hud_top, hud_bottom) * (1.0 - menu_shade);
+	shade = 1.0 - (1.0 - shade) * (1.0 - hud_shade);
 	float impact = edge * hit_strength;
 	// Static, sub-visible paper grain; no animated noise over character pixels.
 	float grain = fract(sin(dot(floor(FRAGCOORD.xy / 2.0), vec2(12.9898, 78.233))) * 43758.5453) - 0.5;

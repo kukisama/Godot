@@ -2,3 +2,6 @@
 play/
 qa/
 *.tmp
+
+# Generated Windows delivery archive; source assets and other ZIPs stay visible.
+/StarlightInn-Windows.zip

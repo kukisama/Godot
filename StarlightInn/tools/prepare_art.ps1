@@ -3,7 +3,7 @@ param()
 # Production conversion of the Image 2.5 masters; no generation requests here.
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
-if (-not ('StarlightArt' -as [type])) {
+if (-not ('StarlightArtV2' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.Drawing;
@@ -12,7 +12,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Collections.Generic;
 
-public static class StarlightArt {
+public static class StarlightArtV2 {
     static Bitmap Key(Bitmap source, Rectangle region) {
         Bitmap result = new Bitmap(region.Width, region.Height, PixelFormat.Format32bppArgb);
         for (int y = 0; y < region.Height; y++) {
@@ -93,6 +93,10 @@ public static class StarlightArt {
             foreach (Bitmap cell in hero) { tallest = Math.Max(tallest, cell.Height); widest = Math.Max(widest, cell.Width); }
             double scale = Math.Min(108.0 / tallest, 84.0 / widest);
             for (int i = 0; i < hero.Count; i++) {
+                // Image 2.5 master: row 3 / column 3 was drawn facing LEFT
+                // inside the RIGHT walk strip. Repair that pose, not game input.
+                // Keep the source master unchanged; test_facing.gd checks pixels.
+                if (i == 10) hero[i].RotateFlip(RotateFlipType.RotateNoneFlipX);
                 using (Bitmap frame = Fit(hero[i], 96, 128, 120, scale))
                     Save(frame, Path.Combine(sprites, "traveler_" + directions[i / 4] + "_" + (i % 4) + ".png"));
             }
@@ -137,4 +141,4 @@ public static class StarlightArt {
 '@ -ReferencedAssemblies @('System.Drawing.Common', 'System.Drawing.Primitives', 'System.Runtime', 'System.Collections', 'System.Console', 'System.Private.Windows.Core', 'System.Private.Windows.GdiPlus', 'System.Runtime.InteropServices')
 }
 
-[StarlightArt]::Prepare([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')))
+[StarlightArtV2]::Prepare([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')))

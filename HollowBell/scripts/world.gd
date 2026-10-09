@@ -58,8 +58,6 @@ var _bark: StandardMaterial3D
 var _moss: StandardMaterial3D
 var _bronze: StandardMaterial3D
 var _iron: StandardMaterial3D
-var _leaves: StandardMaterial3D
-var _silhouette: StandardMaterial3D
 var _amber: StandardMaterial3D
 var _ivory: StandardMaterial3D
 var _mote_material: StandardMaterial3D
@@ -120,10 +118,10 @@ func update_world(delta: float, player_x: float) -> void:
 	if _water_material != null:
 		_water_material.set_shader_parameter("flow_time", _clock)
 	var abbey_weight: float = smoothstep(78.0, 96.0, player_x)
-	_environment.ambient_light_color = Color(0.49, 0.61, 0.65).lerp(
-		Color(0.48, 0.53, 0.63), abbey_weight)
-	_environment.fog_light_color = Color(0.24, 0.36, 0.39).lerp(
-		Color(0.22, 0.28, 0.34), abbey_weight)
+	_environment.ambient_light_color = Color(0.43, 0.56, 0.60).lerp(
+		Color(0.40, 0.49, 0.57), abbey_weight)
+	_environment.fog_light_color = Color(0.20, 0.31, 0.34).lerp(
+		Color(0.19, 0.26, 0.31), abbey_weight)
 
 
 func close_boss_gate() -> void:
@@ -178,20 +176,26 @@ func _refresh_assets() -> void:
 
 
 func _surface(asset: String, tint: Color, uv_scale: Vector2 = Vector2.ONE,
-		uv_offset: Vector2 = Vector2.ZERO) -> StandardMaterial3D:
-	var key: String = "%s:%s:%s:%s" % [asset, tint.to_html(), uv_scale, uv_offset]
+		uv_offset: Vector2 = Vector2.ZERO, world_uv: bool = true) -> StandardMaterial3D:
+	var key: String = "%s:%s:%s:%s:%s" % [asset, tint.to_html(), uv_scale, uv_offset, world_uv]
 	if _materials.has(key):
 		return _materials[key] as StandardMaterial3D
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_color = tint
-	material.roughness = 0.91
-	material.metallic_specular = 0.25
-	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	material.roughness = 0.97
+	material.metallic_specular = 0.08
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	material.texture_repeat = true
 	material.uv1_scale = Vector3(uv_scale.x, uv_scale.y, 1.0)
 	material.uv1_offset = Vector3(uv_offset.x, uv_offset.y, 0.0)
 	material.vertex_color_use_as_albedo = true
 	if not asset.is_empty():
+		if world_uv:
+			# Square tiles span 2.4 world units, including scaled box batches.
+			material.uv1_triplanar = true
+			material.uv1_world_triplanar = true
+			material.uv1_triplanar_sharpness = 8.0
+			material.uv1_scale = Vector3(uv_scale.x, uv_scale.y, uv_scale.x) / 2.4
 		_bind_texture(material, &"albedo_texture", asset)
 	_materials[key] = material
 	return material
@@ -209,18 +213,16 @@ func _glowing(tint: Color, energy: float) -> StandardMaterial3D:
 
 
 func _make_palette() -> void:
-	_stone = _surface("stone", Color(0.80, 0.85, 0.80), Vector2(1.3, 0.8))
-	_brick = _surface("brick", Color(0.72, 0.80, 0.81), Vector2(1.6, 0.9))
-	_wood = _surface("wood", Color(0.75, 0.72, 0.57), Vector2(1.0, 2.0))
-	_bark = _surface("earth", Color(0.42, 0.47, 0.39), Vector2(1.0, 3.0))
-	_moss = _surface("moss", Color(0.71, 0.80, 0.55))
+	_stone = _surface("stone", Color(0.67, 0.73, 0.72))
+	_brick = _surface("brick", Color(0.53, 0.61, 0.61))
+	_wood = _surface("wood", Color(0.62, 0.57, 0.47))
+	_bark = _surface("earth", Color(0.30, 0.39, 0.37))
+	_moss = _surface("moss", Color(0.38, 0.50, 0.43))
 	_bronze = _surface("", Color(0.43, 0.32, 0.15))
 	_bronze.metallic = 0.72
 	_bronze.roughness = 0.42
 	_iron = _surface("", Color(0.15, 0.22, 0.23))
 	_iron.metallic = 0.65
-	_leaves = _surface("moss", Color(0.36, 0.48, 0.35))
-	_silhouette = _surface("", Color(0.055, 0.105, 0.105))
 	_amber = _glowing(Color(1.0, 0.48, 0.11), 1.4)
 	_ivory = _glowing(Color(1.0, 0.85, 0.47), 1.8)
 	_mote_material = StandardMaterial3D.new()
@@ -242,11 +244,11 @@ func _make_lighting() -> void:
 	_environment.background_mode = Environment.BG_COLOR
 	_environment.background_color = Color(0.055, 0.105, 0.13)
 	_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	_environment.ambient_light_energy = 0.78
+	_environment.ambient_light_energy = 0.68
 	_environment.ambient_light_sky_contribution = 0.0
 	_environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	_environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	_environment.tonemap_exposure = 1.08
+	_environment.tonemap_exposure = 1.0
 	_environment.fog_enabled = true
 	_environment.fog_mode = Environment.FOG_MODE_DEPTH
 	# In depth mode density is the maximum opacity, NOT exponential density.
@@ -262,8 +264,8 @@ func _make_lighting() -> void:
 	var key: DirectionalLight3D = DirectionalLight3D.new()
 	key.name = "PaleGoldMoon"
 	key.rotation_degrees = Vector3(-48.0, -26.0, 0.0)
-	key.light_color = Color(1.0, 0.90, 0.72)
-	key.light_energy = 1.45
+	key.light_color = Color(0.76, 0.84, 0.86)
+	key.light_energy = 0.72
 	key.shadow_enabled = true
 	key.shadow_bias = 0.035
 	key.shadow_normal_bias = 1.1
@@ -275,18 +277,18 @@ func _make_lighting() -> void:
 	fill.name = "CoolStoneBounce"
 	fill.rotation_degrees = Vector3(-24.0, 148.0, 0.0)
 	fill.light_color = Color(0.42, 0.66, 0.80)
-	fill.light_energy = 0.28
+	fill.light_energy = 0.20
 	fill.shadow_enabled = false
 	_atmosphere.add_child(fill)
 
 
 func _make_backdrops() -> void:
 	_add_backdrop("vista", -43.0, 5.7, 29.0, 90.0, 0.028,
-		Color(0.65, 0.77, 0.81, 1.0), Vector2(-100.0, 300.0))
+		Color(0.56, 0.68, 0.72, 1.0), Vector2(-100.0, 300.0))
 	_add_backdrop("forest", -23.0, 4.8, 20.0, 16.0, 0.09,
-		Color(0.54, 0.67, 0.65, 0.94), Vector2(-60.0, 46.0))
+		Color(0.39, 0.52, 0.53, 0.94), Vector2(-60.0, 46.0))
 	_add_backdrop("abbey", -27.0, 4.9, 21.0, 136.0, 0.058,
-		Color(0.59, 0.68, 0.72, 0.94), Vector2(79.0, 240.0))
+		Color(0.48, 0.58, 0.62, 0.94), Vector2(79.0, 240.0))
 
 
 func _add_backdrop(asset: String, depth: float, screen_y: float, height: float,
@@ -361,11 +363,10 @@ func _make_slab(start: float, end: float) -> void:
 	var height: float = 1.15 if bridge else 3.3 + _rng.randf_range(0.0, 0.45)
 	var top_asset: String = "moss" if forest else "flagstone"
 	var side_asset: String = "earth" if forest else "stone"
-	var top_tint: Color = Color(0.88, 0.91, 0.79) if forest else Color(0.84, 0.87, 0.81)
+	var top_tint: Color = Color(0.55, 0.65, 0.55) if forest else Color(0.69, 0.74, 0.71)
 	var top: StandardMaterial3D = _surface(top_asset, top_tint,
-		Vector2(width / 2.4, PATH_DEPTH / 2.4), Vector2(start / 2.4, 0.0))
-	var side: StandardMaterial3D = _surface(side_asset, Color(0.67, 0.76, 0.73),
-		Vector2(width / 1.9, height / 1.9), Vector2(start / 1.9, 0.0))
+		Vector2(width / 2.4, PATH_DEPTH / 2.4), Vector2(start / 2.4, 0.0), false)
+	var side: StandardMaterial3D = _surface(side_asset, Color(0.50, 0.62, 0.61))
 	_box(_terrain, Vector3(center, -0.18 - height * 0.5, 0.0),
 		Vector3(width, height, PATH_DEPTH - 0.25), side)
 	_box(_terrain, Vector3(center, -0.132, 0.0), Vector3(width, 0.24, PATH_DEPTH), _stone)
@@ -375,8 +376,8 @@ func _make_slab(start: float, end: float) -> void:
 	_wall_quad(_terrain, Vector3(center, -0.18 - height * 0.5, -2.792),
 		Vector2(width, height), side, PI)
 	if forest:
-		var path_material: StandardMaterial3D = _surface("earth", Color(0.65, 0.66, 0.49),
-			Vector2(width / 2.0, 0.65), Vector2(start / 2.0, 0.0))
+		var path_material: StandardMaterial3D = _surface("earth", Color(0.50, 0.55, 0.46),
+			Vector2(width / 2.0, 1.35 / 2.0), Vector2(start / 2.0, 0.0), false)
 		_floor_plane(_terrain, Vector3(center, 0.006, 0.0), Vector2(width, 1.35), path_material)
 	elif center > 158.0:
 		_batch_box("ArenaInlay", Vector3(center, 0.004, -1.5),
@@ -418,7 +419,7 @@ func _make_verges(span: Vector2) -> void:
 				_moss, Color(0.87, 0.96, 0.79), _rng.randf_range(-0.25, 0.25))
 		if forest or _rng.randf() < 0.38:
 			_prop("ferns", Vector3(cursor, -0.05, -2.5),
-				_rng.randf_range(0.65, 1.25), Color(0.79, 0.88, 0.69), 0.024)
+				_rng.randf_range(0.65, 1.25), Color(0.54, 0.68, 0.56), 0.024)
 		# Foreground decoration stays below the actor's knees; no opaque tree wall.
 		if _rng.randf() < 0.55:
 			_prop("ferns", Vector3(cursor, -0.22, 3.15),
@@ -433,24 +434,17 @@ func _make_verges(span: Vector2) -> void:
 
 func _make_forest() -> void:
 	# Four depth bands: distant firs, substantial midground trunks, roadside
-	# botanical detail, then only low/overhead foreground framing.
+	# botanical detail, then only low foreground framing. Authored crowns stay clear.
 	for index: int in range(17):
 		var x: float = -16.0 + float(index) * 3.6 + _rng.randf_range(-0.5, 0.5)
 		_tree(Vector3(x, -0.8, -13.0 - _rng.randf_range(0.0, 4.0)),
-			_rng.randf_range(8.0, 11.5), true, Color(0.31, 0.47, 0.46))
+			_rng.randf_range(8.0, 11.5), true, Color(0.24, 0.37, 0.39))
 	for index: int in range(10):
 		var x: float = -10.0 + float(index) * 5.25
 		_tree(Vector3(x, -0.35, -5.7 - _rng.randf_range(0.0, 2.2)),
-			_rng.randf_range(6.6, 9.1), index % 3 == 0, Color(0.72, 0.80, 0.62))
-	for x: float in [-6.0, 10.0, 24.0, 36.0]:
-		var tree: Node3D = _group("OverheadBough", _vegetation)
-		_beam(tree, Vector3(x - 3.6, 7.0, 2.0), Vector3(x + 0.2, 7.8, 1.6), 0.13, _silhouette)
-		_beam(tree, Vector3(x - 1.9, 7.4, 1.8), Vector3(x - 0.5, 6.7, 2.0), 0.07, _silhouette)
-		for index: int in range(4):
-			_rock(tree, Vector3(x - 2.4 + float(index) * 0.7, 7.55, 1.8),
-				Vector3(1.0, 0.38, 0.7), _silhouette)
+			_rng.randf_range(6.6, 9.1), index % 3 == 0, Color(0.43, 0.54, 0.48))
 	_arch(_architecture, Vector3(15.0, 0.0, -3.85), 4.0, 2.0, 0.65, _stone, true)
-	_prop("arch", Vector3(15.0, 0.0, -4.3), 5.4, Color(0.64, 0.73, 0.62))
+	_prop("arch", Vector3(15.0, 0.0, -4.3), 5.4, Color(0.43, 0.54, 0.49))
 	_prop("dead_tree", Vector3(37.0, -0.1, -3.8), 6.2, Color(0.44, 0.57, 0.53), 0.003)
 	for x: float in [2.0, 21.8, 32.0]:
 		_box(_details, Vector3(x, 0.42, -1.95), Vector3(0.48, 0.84, 0.48), _stone)
@@ -462,7 +456,7 @@ func _make_forest() -> void:
 
 func _tree(origin: Vector3, height: float, fir: bool, tint: Color) -> void:
 	var asset: String = "fir" if fir else "oak"
-	_prop(asset, origin, height, tint, 0.004)
+	_prop(asset, origin, height, tint, 0.002)
 	var trunk: Node3D = _group("FirTrunk" if fir else "OakTrunk", _vegetation)
 	trunk.position = origin + Vector3(0.0, 0.0, -0.16)
 	_cylinder(trunk, Vector3(0.0, height * 0.31, 0.0),
@@ -471,10 +465,6 @@ func _tree(origin: Vector3, height: float, fir: bool, tint: Color) -> void:
 		for side: float in [-1.0, 1.0]:
 			_beam(trunk, Vector3(0.0, height * 0.35, 0.0),
 				Vector3(side * height * 0.16, height * 0.7, -0.1), 0.12, _bark)
-		# Small foliage masses add volume behind the cut-out crown, not a flat wall.
-		for index: int in range(3):
-			_rock(trunk, Vector3((float(index) - 1.0) * height * 0.15,
-				height * 0.76, -0.5), Vector3(height * 0.22, height * 0.13, 0.8), _leaves)
 
 
 func _make_aqueduct() -> void:
@@ -506,13 +496,12 @@ func _make_aqueduct() -> void:
 			_batch_box("BrokenNearRail", Vector3(x + 0.55, 0.12, 2.7),
 				Vector3(0.86, 0.2, 0.24), _stone, Color.WHITE, -0.1)
 	# Ruined sister aqueduct, well behind the player's route.
+	var distant_stone: StandardMaterial3D = _surface("", Color(0.16, 0.25, 0.28))
+	distant_stone.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	for index: int in range(4):
 		var x: float = 41.0 + float(index) * 14.0
-		var distant_stone: StandardMaterial3D = _surface("stone", Color(0.38, 0.51, 0.54))
-		_arch(_architecture, Vector3(x, -4.6, -18.0), 10.2, 2.4, 1.1,
+		_arch(_architecture, Vector3(x, -6.5, -20.0), 7.6, 1.8, 0.8,
 			distant_stone, index == 2)
-		if index != 2:
-			_box(_architecture, Vector3(x, 3.48, -18.0), Vector3(12.0, 0.4, 1.6), distant_stone)
 	for x: float in [43.6, 59.2, 79.1]:
 		_add_torch(Vector3(x, 2.45, -2.35), 0.85)
 	for x: float in [48.0, 69.0, 80.5]:
@@ -531,7 +520,7 @@ func _make_aqueduct() -> void:
 
 
 func _make_abbey() -> void:
-	var rear_stone: StandardMaterial3D = _surface("brick", Color(0.51, 0.62, 0.65), Vector2(2.0, 2.0))
+	var rear_stone: StandardMaterial3D = _surface("brick", Color(0.36, 0.47, 0.49))
 	for index: int in range(9):
 		var x: float = 87.0 + float(index) * 8.0
 		_arch(_architecture, Vector3(x, 0.0, -4.5), 6.0, 3.6, 0.8,
@@ -546,7 +535,7 @@ func _make_abbey() -> void:
 			_box(_architecture, Vector3(x, 0.8, -9.8), Vector3(7.8, 1.6, 0.85), rear_stone)
 		_arch(_architecture, Vector3(x + 1.4, 1.6, -10.0), 6.2, 3.4, 0.65,
 			rear_stone, index % 4 == 1)
-		_box(_architecture, Vector3(x, 1.7, -9.5), Vector3(7.8, 0.22, 1.25), _stone)
+		_box(_architecture, Vector3(x, 1.7, -9.5), Vector3(7.8, 0.22, 1.25), rear_stone)
 		if index % 3 != 0:
 			_prop("ferns", Vector3(x - 2.8, 1.78, -8.85), 1.3,
 				Color(0.46, 0.65, 0.49), 0.018)
@@ -595,7 +584,7 @@ func _rose_window(origin: Vector3, radius: float) -> void:
 
 
 func _make_arena() -> void:
-	var arena_stone: StandardMaterial3D = _surface("stone", Color(0.66, 0.72, 0.74), Vector2(1.0, 1.8))
+	var arena_stone: StandardMaterial3D = _surface("stone", Color(0.56, 0.65, 0.68))
 	for x: float in [161.5, 169.0, 180.8, 188.0]:
 		_column(Vector3(x, 0.0, -5.8), 9.3, 0.63)
 		_box(_architecture, Vector3(x, 2.2, -7.0), Vector3(1.65, 4.4, 1.3), arena_stone)
@@ -723,8 +712,8 @@ func _make_exit_bell() -> void:
 	_make_hanging_bell(pavilion, Vector3(0.0, 4.2, 0.0), 1.1, true)
 	_torus(_details, Vector3(191.0, -0.019, 0.0), 1.75, 1.80, _bronze)
 	_omni(pavilion, Vector3(0.0, 2.8, 1.1), 1.0, 5.0)
-	_tree(Vector3(196.5, 0.0, -5.3), 8.3, false, Color(0.85, 0.78, 0.51))
-	_prop("ferns", Vector3(193.4, 0.0, -2.2), 1.4, Color(0.82, 0.87, 0.65), 0.02)
+	_tree(Vector3(196.5, 0.0, -5.3), 8.3, false, Color(0.52, 0.55, 0.44))
+	_prop("ferns", Vector3(193.4, 0.0, -2.2), 1.4, Color(0.58, 0.69, 0.54), 0.02)
 
 
 func _add_torch(origin: Vector3, energy: float) -> void:
@@ -865,7 +854,8 @@ func _prop(asset: String, origin: Vector3, height: float, tint: Color,
 	# Prepared 384x512 props have their ground contact at source y ~= 480.
 	sprite.offset = Vector2(0.0, 224.0)
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	sprite.shaded = true
+	# Background art carries its own light; only roadside props receive torchlight.
+	sprite.shaded = origin.z > -3.5 and origin.z < 2.9
 	sprite.double_sided = true
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 	sprite.alpha_scissor_threshold = 0.38
@@ -990,6 +980,7 @@ func _mesh(parent: Node3D, mesh: Mesh, material: Material, position: Vector3) ->
 
 
 func _box(parent: Node3D, position: Vector3, size: Vector3, material: Material) -> MeshInstance3D:
+	# Shared world-triplanar surfaces avoid stretching on long beams/thin caps.
 	var box: BoxMesh = BoxMesh.new()
 	box.size = size
 	return _mesh(parent, box, material, position)

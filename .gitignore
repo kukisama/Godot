@@ -10,6 +10,28 @@ play/
 build/
 target/
 
+# Downloaded Godot editor and export templates (reinstall locally).
+/StarlightInn/tools/godot-standard/
+
+# Compiled binaries, installers and packaged deliverables; keep their sources.
+*.exe
+*.dll
+*.pck
+*.pdb
+*.obj
+*.lib
+*.exp
+*.msi
+*.msix
+*.apk
+*.aab
+*.tpz
+*.zip
+
+# .NET build outputs, including standalone bridge tests.
+bin/
+obj/
+
 # Temporary files and Python tool caches.
 *.log
 *.tmp

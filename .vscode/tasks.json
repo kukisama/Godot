@@ -7,6 +7,13 @@
 			"command": "& '${workspaceFolder}\\play\\ForestGlow.exe' --rendering-driver opengl3_angle --log-file '${workspaceFolder}\\qa\\desktop-task.log'",
 			"isBackground": true,
 			"problemMatcher": []
+		},
+		{
+			"label": "试玩钟誓 · 第一关",
+			"type": "shell",
+			"command": "& '${workspaceFolder}\\play\\HollowBell.exe' --rendering-driver opengl3_angle --log-file '${workspaceFolder}\\HollowBell\\qa\\desktop-play.log'",
+			"isBackground": true,
+			"problemMatcher": []
 		}
 	]
 }

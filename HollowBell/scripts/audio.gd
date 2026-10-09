@@ -146,6 +146,7 @@ func set_paused(value: bool) -> void:
 
 
 func _select_music(track_name: String) -> void:
+	_discard_finished_music()
 	if track_name == _applied_music:
 		return
 	var targets: PackedFloat32Array = PackedFloat32Array([0.0, 0.0])
@@ -183,6 +184,7 @@ func _select_music(track_name: String) -> void:
 
 
 func _process(delta: float) -> void:
+	_discard_finished_music()
 	var pause_target: float = PAUSED_MUSIC_GAIN if _paused else 1.0
 	_pause_gain = move_toward(_pause_gain, pause_target, delta * 5.0)
 	if _fade_elapsed < CROSSFADE_SECONDS:
@@ -199,6 +201,18 @@ func _process(delta: float) -> void:
 				_music_players[index].stop()
 				_music_names[index] = ""
 	_update_levels()
+
+
+func _discard_finished_music() -> void:
+	# A finished one-shot occupies no audible slot. Its previous fade weight
+	# must not make a newly playing track look quieter and get stolen on a
+	# rapid request (victory ends -> explore -> boss).
+	for index in range(_music_players.size()):
+		if not _music_players[index].playing:
+			_weights[index] = 0.0
+			_fade_from[index] = 0.0
+			_fade_to[index] = 0.0
+			_music_names[index] = ""
 
 
 func _update_levels() -> void:
@@ -223,3 +237,21 @@ func _warn_once(key: String) -> void:
 	if not _warned_names.has(key):
 		_warned_names[key] = true
 		push_warning("Hollow Bell audio: unknown or unavailable " + key)
+
+
+func shutdown() -> void:
+	set_process(false)
+	for player: AudioStreamPlayer in _music_players + _sfx_players:
+		if is_instance_valid(player):
+			player.stop()
+			player.stream = null
+	_music_cache.clear()
+	_sfx_cache.clear()
+	_music_names = ["", ""]
+	_weights.fill(0.0)
+	_fade_from.fill(0.0)
+	_fade_to.fill(0.0)
+
+
+func _exit_tree() -> void:
+	shutdown()

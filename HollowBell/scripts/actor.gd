@@ -25,6 +25,7 @@ var animation_count := 6
 var animation_fps := 10.0
 var animation_loop := true
 var animation_clock := 0.0
+var animation_external_clock := false
 var pixel_scale := 0.013
 var textures: Dictionary = {}
 var telegraph_strength := 0.0
@@ -115,13 +116,14 @@ func set_sheet(sheet: String) -> void:
 
 func play_animation(label: String, first: int, count: int = 6, fps: float = 12.0, looped: bool = true, sheet: String = "") -> void:
 	if label == animation_name:
+		animation_fps = maxf(0.01, fps)
 		return
 	if not sheet.is_empty():
 		set_sheet(sheet)
 	animation_name = label
 	animation_start = first
 	animation_count = count
-	animation_fps = fps
+	animation_fps = maxf(0.01, fps)
 	animation_loop = looped
 	animation_clock = 0.0
 	animation_frame = 0
@@ -129,17 +131,28 @@ func play_animation(label: String, first: int, count: int = 6, fps: float = 12.0
 	if sprite:
 		sprite.frame = first
 
+func seek_animation_pose(index: int) -> void:
+	# Player poses and hitboxes share one physics clock; render never advances
+	# or restarts a windup/strike/recovery clip. Enemy animations remain legacy.
+	animation_frame = clampi(index, 0, animation_count - 1)
+	animation_clock = float(animation_frame) / animation_fps
+	animation_finished = index >= animation_count
+	if sprite:
+		sprite.frame = animation_start + animation_frame
+		sprite.flip_h = facing < 0
+
 func _process(delta: float) -> void:
 	if not is_instance_valid(sprite):
 		return
 	_visual_time += delta
 	hit_flash = maxf(0.0, hit_flash - delta)
 	bar_time = maxf(0.0, bar_time - delta)
-	animation_clock += delta
-	var raw_frame := int(animation_clock * animation_fps)
-	animation_finished = raw_frame >= animation_count
-	animation_frame = raw_frame % animation_count if animation_loop else mini(raw_frame, animation_count - 1)
-	sprite.frame = animation_start + animation_frame
+	if not animation_external_clock:
+		animation_clock += delta
+		var raw_frame := int(animation_clock * animation_fps)
+		animation_finished = raw_frame >= animation_count
+		animation_frame = raw_frame % animation_count if animation_loop else mini(raw_frame, animation_count - 1)
+		sprite.frame = animation_start + animation_frame
 	sprite.flip_h = facing < 0
 	sprite.modulate = Color(2.0, 1.65, 1.25) if hit_flash > 0.0 else Color.WHITE
 	visual.scale = Vector3(squash.x, squash.y, 1.0)

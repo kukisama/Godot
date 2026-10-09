@@ -17,8 +17,10 @@ const HELP_ROWS: Array[Array] = [
 	["跳跃", "Space", "A"],
 	["三段连击", "J / 鼠标左键 · 连按", "X · 连按"],
 	["蓄力重击", "按住 K / 鼠标右键", "按住 Y"],
-	["闪避", "Shift / L", "B"],
-	["格挡 / 弹反", "Q · 起手可弹反", "LB"],
+	["长翻滚", "Shift / L", "B"],
+	["短翻滚", "C / 鼠标中键", "RT"],
+	["格挡", "按住 Q · 贴身护盾", "按住 LB"],
+	["弹反", "新按 Q · 起手 0.17 秒", "新按 LB"],
 	["回复", "E", "RB"],
 	["暂停", "Esc", "Start"],
 	["全屏", "F11", "—"],
@@ -705,7 +707,20 @@ func _refresh_data() -> void:
 		var potions: int = maxi(0, int(_number(hero, &"potions", 0.0)))
 		potion_label.text = "琥珀瓶  %d     %s" % [potions, "RB  回复" if _pad_mode else "E  回复"]
 		potion_label.modulate = Color.WHITE if potions > 0 else Color(0.7, 0.73, 0.72)
-		guard_label.text = "誓约未散" if bool(_read(hero, &"dead", false)) else ("格挡中" if bool(_read(hero, &"guarding", false)) else "")
+		var protection: float = maxf(0.0, _number(hero, &"parry_invulnerable", 0.0))
+		var action: String = str(_read(hero, &"state", "idle"))
+		if bool(_read(hero, &"dead", false)):
+			guard_label.text = "誓约未散"
+		elif protection > 0.0:
+			guard_label.text = "弹反护佑 %.1fs" % protection
+		elif action == "quick_roll":
+			guard_label.text = "短翻滚"
+		elif action == "roll":
+			guard_label.text = "长翻滚"
+		elif action == "block":
+			guard_label.text = "格挡卸力"
+		else:
+			guard_label.text = "格挡中" if bool(_read(hero, &"guarding", false)) else ""
 		if hero is Node3D:
 			var x: float = (hero as Node3D).global_position.x
 			var index: int = _zone_for_x(x)
@@ -777,11 +792,28 @@ func _update_tutorial(x: float, health: float, maximum: float, stamina: float,
 	var light: String = "X" if _pad_mode else "J / 鼠标左键"
 	var heavy: String = "Y" if _pad_mode else "K / 鼠标右键"
 	var dodge: String = "B" if _pad_mode else "Shift / L"
+	var quick: String = "RT" if _pad_mode else "C / 鼠标中键"
 	var guard: String = "LB" if _pad_mode else "Q"
 	var heal: String = "RB" if _pad_mode else "E"
+	var hero: Node = _node(_read(game, &"hero", null))
+	var protection: float = maxf(0.0, _number(hero, &"parry_invulnerable", 0.0))
+	var action: String = str(_read(hero, &"state", "idle"))
 	if bool(_read(game, &"boss_defeated", false)):
 		tutorial_label.text = "向右前行，抵达最后的钟亭。"
 		_tutorial_detail.text = "出口已开启。"
+	elif protection > 0.0:
+		_tutorial_kicker.text = "弹反成功"
+		tutorial_label.text = "护佑剩余 %.1f 秒" % protection
+		_tutorial_detail.text = "成功弹反获得 1 秒无敌；翻滚不会缩短护佑。"
+	elif action == "quick_roll":
+		tutorial_label.text = "%s  短翻滚" % quick
+		_tutorial_detail.text = "耗气 14 · 动作 0.30 秒 · 无敌 0.22 秒。"
+	elif action == "roll":
+		tutorial_label.text = "%s  长翻滚" % dodge
+		_tutorial_detail.text = "耗气 20 · 动作 0.48 秒 · 无敌 0.38 秒。"
+	elif bool(_read(hero, &"guarding", false)) or action == "block":
+		tutorial_label.text = "按住 %s  贴身格挡" % guard
+		_tutorial_detail.text = "新按起手 0.17 秒可弹反；持续按住不重开窗口。"
 	elif maximum > 0 and health <= maximum * 0.45 and potions > 0:
 		_tutorial_kicker.text = "琥珀祈愿"
 		tutorial_label.text = "%s  回复生命" % heal
@@ -796,8 +828,8 @@ func _update_tutorial(x: float, health: float, maximum: float, stamina: float,
 		tutorial_label.text = "连按 %s  三段连击" % light
 		_tutorial_detail.text = "按住 %s 可蓄力重击。" % heavy
 	elif x < 38:
-		tutorial_label.text = "%s  闪避    ·    %s  格挡 / 弹反" % [dodge, guard]
-		_tutorial_detail.text = "敌人亮出前摇时，抓住格挡起手的瞬间。"
+		tutorial_label.text = "%s  长翻滚    ·    %s  短翻滚" % [dodge, quick]
+		_tutorial_detail.text = "%s 新按起手可弹反；按住则贴身格挡。" % guard
 	elif x < 87:
 		tutorial_label.text = "%s  越过缺口    ·    %s  回复" % [jump, heal]
 		_tutorial_detail.text = "留意断桥；祈灯点亮后可从这里重试。"

@@ -6,6 +6,10 @@ const Catalog = preload("res://scripts/npc_catalog.gd")
 const Dialogue = preload("res://scripts/dialogue.gd")
 const InnUI = preload("res://scripts/inn_ui.gd")
 const Atmosphere = preload("res://scripts/atmosphere.gd")
+const Soundscape = preload("res://scripts/soundscape.gd")
+const AzureSession = preload("res://scripts/azure_session.gd")
+const AzurePanel = preload("res://scripts/azure_panel.gd")
+const AzureBridgeScript = preload("res://scripts/azure_bridge.gd")
 const SPEED := 224.0
 const INTERACT_DISTANCE := 130.0
 const SPAWN := Vector2(799, 817)
@@ -15,7 +19,11 @@ var player: Actor
 var npcs: Dictionary = {}
 var navigation := Navigation.new()
 var dialogue := Dialogue.new()
+var sound := Soundscape.new()
 var ui: InnUI
+var azure_session := AzureSession.new()
+var azure_panel: AzurePanel
+var azure_bridge: Node
 var camera: Camera3D
 var floor_image: Sprite3D
 var route := PackedVector2Array()
@@ -28,31 +36,50 @@ var _walked: float = 0.0
 var _qa_path: String = ""
 var _qa_accumulator: float = 0.0
 var _last_input: String = "none"
+var _last_response_id: String = ""
 
 
 func _ready() -> void:
 	_setup_input()
 	_setup_world()
 	add_child(dialogue)
+	add_child(sound)
 	var hud := CanvasLayer.new()
 	hud.layer = 10
 	add_child(hud)
 	ui = InnUI.new()
 	hud.add_child(ui)
 	ui.setup(dialogue)
+	azure_bridge = AzureBridgeScript.new()
+	add_child(azure_bridge)
+	add_child(azure_session)
+	azure_session.setup(azure_bridge)
+	var azure_layer := CanvasLayer.new()
+	azure_layer.layer = 20
+	add_child(azure_layer)
+	azure_panel = AzurePanel.new()
+	azure_panel.theme = ui.theme
+	azure_layer.add_child(azure_panel)
+	azure_panel.setup(azure_session)
+	ui.azure_requested.connect(_open_azure)
+	azure_session.changed.connect(func() -> void: ui.set_azure_status(azure_session.context_text()))
+	ui.set_azure_status(azure_session.context_text())
 	ui.choice_selected.connect(_choose)
 	ui.message_submitted.connect(_send_message)
 	ui.close_requested.connect(_close_dialogue)
 	ui.guide_requested.connect(_show_guide)
 	ui.journal_requested.connect(_show_journal)
 	ui.fullscreen_requested.connect(_toggle_fullscreen)
+	ui.audio_requested.connect(_toggle_audio)
+	ui.modal_closed.connect(func() -> void: sound.play_cue("dialogue_close", -16.0))
+	sound.mute_changed.connect(ui.set_muted)
 	dialogue.changed.connect(_on_dialogue_changed)
 	dialogue.closed.connect(_on_dialogue_closed)
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--qa-state="):
 			_qa_path = argument.trim_prefix("--qa-state=")
 	_write_qa_state()
-	print("STARLIGHT_INN_READY: four residents, offline capability interfaces, no network services")
+	print("STARLIGHT_INN_READY: four residents, offline demo retained, real Azure bridge available; no automatic login dialogs")
 
 
 func _setup_input() -> void:
@@ -142,7 +169,7 @@ func _physics_process(delta: float) -> void:
 		return
 	elapsed += delta
 	var before: Vector2 = player.ground_position
-	if not dialogue.is_open and not ui.modal.visible:
+	if not dialogue.is_open and not ui.modal.visible and not azure_panel.visible:
 		var axis: Vector2 = Input.get_vector("inn_left", "inn_right", "inn_up", "inn_down")
 		if axis.length_squared() > 0.01:
 			route.clear()
@@ -158,6 +185,8 @@ func _physics_process(delta: float) -> void:
 	if _walked >= 35.0:
 		footsteps += 1
 		_walked = fmod(_walked, 35.0)
+		sound.footstep()
+	sound.update_listener(player.ground_position, dialogue.is_open)
 	_update_nearest()
 	if not pending_npc.is_empty() and player.ground_position.distance_to(npcs[pending_npc].ground_position) <= INTERACT_DISTANCE - 10.0:
 		var reached: String = pending_npc
@@ -209,7 +238,7 @@ func _update_nearest() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if dialogue.is_open or ui.modal.visible:
+		if dialogue.is_open or ui.modal.visible or azure_panel.visible:
 			return
 		_last_input = "mouse_click"
 		var npc: String = npc_at_screen(event.position)
@@ -222,6 +251,15 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo or ui == null:
+		return
+	if azure_panel != null and azure_panel.visible:
+		if event.keycode == KEY_ESCAPE:
+			azure_panel.hide_panel()
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_F11:
+			_toggle_fullscreen()
+			get_viewport().set_input_as_handled()
+		# Let top-panel text fields / buttons receive normal keys, never game shortcuts.
 		return
 	# Escape is global; typing letters never triggers movement or shortcuts.
 	if event.keycode == KEY_ESCAPE:
@@ -242,6 +280,9 @@ func _input(event: InputEvent) -> void:
 	elif event.keycode == KEY_J and not ui.input_line.has_focus():
 		_show_journal()
 		get_viewport().set_input_as_handled()
+	elif event.keycode == KEY_M and not ui.input_line.has_focus():
+		_toggle_audio()
+		get_viewport().set_input_as_handled()
 	elif event.keycode == KEY_F12 and not _qa_path.is_empty():
 		_capture_qa_frame.call_deferred()
 		get_viewport().set_input_as_handled()
@@ -253,7 +294,7 @@ func _input(event: InputEvent) -> void:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
-	if ui.modal.visible or ui.input_line.has_focus():
+	if ui.modal.visible or ui.input_line.has_focus() or azure_panel.visible:
 		return
 	if dialogue.is_open:
 		if event.keycode >= KEY_1 and event.keycode <= KEY_4:
@@ -271,7 +312,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func walk_to(point: Vector2) -> void:
-	if dialogue.is_open or ui.modal.visible:
+	if dialogue.is_open or ui.modal.visible or azure_panel.visible:
 		return
 	pending_npc = ""
 	destination = point
@@ -279,7 +320,7 @@ func walk_to(point: Vector2) -> void:
 
 
 func walk_to_npc(id: String) -> void:
-	if not npcs.has(id) or dialogue.is_open or ui.modal.visible:
+	if not npcs.has(id) or dialogue.is_open or ui.modal.visible or azure_panel.visible:
 		return
 	if player.ground_position.distance_to(npcs[id].ground_position) <= INTERACT_DISTANCE:
 		_open_dialogue(id)
@@ -306,10 +347,15 @@ func npc_at_screen(point: Vector2) -> String:
 
 
 func _open_dialogue(id: String) -> void:
+	if azure_panel.visible:
+		return
 	route.clear()
 	pending_npc = ""
 	player.set_motion(Vector2.ZERO)
 	dialogue.open_for(id)
+	sound.play_cue("dialogue_open", -12.0)
+	if id == "finn":
+		sound.play_cue("lute")
 	_write_qa_state()
 
 
@@ -318,27 +364,38 @@ func _close_dialogue() -> void:
 
 
 func _choose(id: String) -> void:
-	if ui.modal.visible:
+	if ui.modal.visible or azure_panel.visible:
 		return
 	_last_input = "dialogue_choice"
+	if not dialogue.busy and id != "goodbye":
+		for choice: Dictionary in dialogue.choices:
+			if choice.id == id:
+				sound.play_cue("select", -17.0)
+				break
 	dialogue.choose(id)
 
 
 func _send_message(message: String) -> void:
-	if ui.modal.visible:
+	if ui.modal.visible or azure_panel.visible:
 		return
 	_last_input = "text_submit"
 	dialogue.send_message(message)
 	if dialogue.busy:
+		sound.play_cue("select", -17.0)
 		ui.input_line.text = ""
 		ui.input_counter.text = "0 / 280"
 
 
 func _on_dialogue_changed() -> void:
+	var response_id: String = str(dialogue.last_response.get("request_id", ""))
+	if not response_id.is_empty() and response_id != _last_response_id:
+		_last_response_id = response_id
+		sound.play_cue("reply", -14.0)
 	_write_qa_state()
 
 
 func _on_dialogue_closed() -> void:
+	sound.play_cue("dialogue_close", -14.0)
 	player.set_motion(Vector2.ZERO)
 	if get_viewport().gui_get_focus_owner() != null:
 		get_viewport().gui_get_focus_owner().release_focus()
@@ -346,21 +403,43 @@ func _on_dialogue_closed() -> void:
 
 
 func _show_guide() -> void:
+	if azure_panel.visible:
+		return
 	route.clear()
 	pending_npc = ""
 	if ui.modal.visible and ui.modal_kind == "guide":
 		ui.hide_modal()
 	else:
 		ui.show_guide()
+		sound.play_cue("select", -17.0)
 
 
 func _show_journal() -> void:
+	if azure_panel.visible:
+		return
 	route.clear()
 	pending_npc = ""
 	if ui.modal.visible and ui.modal_kind == "journal":
 		ui.hide_modal()
 	else:
 		ui.show_journal()
+		sound.play_cue("select", -17.0)
+
+
+func _open_azure(id: String = "mira") -> void:
+	if id == "finn":
+		return
+	route.clear()
+	pending_npc = ""
+	player.set_motion(Vector2.ZERO)
+	azure_panel.open_for(id)
+
+
+func _toggle_audio() -> void:
+	sound.toggle_mute()
+	if not sound.muted:
+		sound.play_cue("select", -17.0)
+	_write_qa_state()
 
 
 func _toggle_fullscreen() -> void:
@@ -374,6 +453,11 @@ func _notification(what: int) -> void:
 		pending_npc = ""
 		for action: String in ["inn_left", "inn_right", "inn_up", "inn_down", "inn_sprint"]:
 			Input.action_release(action)
+		if is_instance_valid(sound) and sound.is_inside_tree():
+			sound.set_suspended(true)
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		if is_instance_valid(sound) and sound.is_inside_tree():
+			sound.set_suspended(false)
 
 
 func _capture_qa_frame() -> void:
@@ -392,7 +476,19 @@ func _write_qa_state() -> void:
 	if _qa_path.is_empty() or player == null:
 		return
 	var state: Dictionary = {
-		"mode": "demo", "network_enabled": false,
+		"mode": "demo_with_real_azure", "network_enabled": azure_session.connected(),
+		"azure_bridge_available": true, "azure_panel": azure_panel.visible,
+		"azure_connected": azure_session.connected(), "azure_configured": not str(azure_session.settings.get("client_id", "")).is_empty(),
+		"azure_context_generation": azure_session.context.get("generation", 0),
+		"azure_config_path": azure_session.config_path,
+		"azure_profile_path": azure_session.profile_path,
+		"azure_auto_login": azure_session.preferences.get("auto_login", true),
+		"azure_has_identity": azure_session.preferences.get("has_identity", false),
+		"azure_restoring": azure_session.restoring,
+		"azure_busy": azure_session.busy, "azure_operation_count": azure_session.operations.size(),
+		"audio_muted": sound.muted, "audio_suspended": sound.suspended,
+		"audio_cues": sound.played_counts, "last_audio_cue": sound.last_cue,
+		"fireplace_playing": sound.fireplace.playing,
 		"position": {"x": player.ground_position.x, "y": player.ground_position.y},
 		"facing": player.facing, "moving": player.moving, "footsteps": footsteps,
 		"nearest_npc": nearest_npc, "pending_npc": pending_npc,

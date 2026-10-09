@@ -50,9 +50,11 @@ func _ready() -> void:
 	audio.set_volume(volume)
 	effects = Effects.new()
 	effects.game = self
+	effects.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(effects)
 	world = World.new()
 	world.process_mode = Node.PROCESS_MODE_PAUSABLE
+	world.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(world)
 	world.build()
 	camera = Camera3D.new()
@@ -61,6 +63,7 @@ func _ready() -> void:
 	camera.near = 0.1
 	camera.far = 180.0
 	camera.current = true
+	camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(camera)
 	_spawn_actors()
 	hud = HUD.new()
@@ -75,6 +78,7 @@ func _install_input() -> void:
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"jump": [KEY_SPACE], "light": [KEY_J], "heavy": [KEY_K],
 		"dodge": [KEY_SHIFT, KEY_L], "guard": [KEY_Q], "heal": [KEY_E],
+		"quick_roll": [KEY_C],
 		"pause_game": [KEY_ESCAPE], "fullscreen": [KEY_F11]
 	}
 	for action: String in bindings:
@@ -85,7 +89,7 @@ func _install_input() -> void:
 			event.physical_keycode = key
 			if not InputMap.action_has_event(action, event):
 				InputMap.action_add_event(action, event)
-	var mouse_bindings := {"light": MOUSE_BUTTON_LEFT, "heavy": MOUSE_BUTTON_RIGHT}
+	var mouse_bindings := {"light": MOUSE_BUTTON_LEFT, "heavy": MOUSE_BUTTON_RIGHT, "quick_roll": MOUSE_BUTTON_MIDDLE}
 	for action: String in mouse_bindings:
 		var event := InputEventMouseButton.new()
 		event.button_index = mouse_bindings[action]
@@ -105,6 +109,10 @@ func _install_input() -> void:
 		event.axis = JOY_AXIS_LEFT_X
 		event.axis_value = -1.0 if action == "move_left" else 1.0
 		InputMap.action_add_event(action, event)
+	var quick_trigger := InputEventJoypadMotion.new()
+	quick_trigger.axis = JOY_AXIS_TRIGGER_RIGHT
+	quick_trigger.axis_value = 1.0
+	InputMap.action_add_event("quick_roll", quick_trigger)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("fullscreen"):
@@ -310,11 +318,13 @@ func on_player_fell() -> void:
 	if state != "playing" or hero.dead:
 		return
 	hero.invulnerable = 0.0
+	hero.parry_invulnerable = 0.0
 	hero.guarding = false
 	hero.take_damage(18.0, hero.global_position.x - 1.0, 0.0)
 	if hero.dead:
 		return
 	hero.global_position = Catalog.CHECKPOINTS[checkpoint_index]
+	hero.reset_physics_interpolation()
 	hero.velocity = Vector3.ZERO
 	hero._finish_action()
 	hero.invulnerable = 1.5
@@ -361,7 +371,7 @@ func complete_level() -> void:
 	if state != "playing" or not boss_defeated:
 		return
 	hero.velocity = Vector3.ZERO
-	hero.play_animation("ending", 0, 6, 5.0, true, "hero_motion")
+	hero.play_animation("ending", 0, 6, 8.0, true, "hero_v2_motion")
 	_clear_projectiles()
 	audio.set_music("victory")
 	audio.play_sfx("bell", 1.0)

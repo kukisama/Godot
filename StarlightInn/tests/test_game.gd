@@ -39,6 +39,8 @@ var section_passed: int = 0
 var section_failed: int = 0
 var finishing: bool = false
 var mouse_position := Vector2.ZERO
+var original_buses: Array[Dictionary] = []
+var playback_refs: Array[WeakRef] = []
 
 
 func _initialize() -> void:
@@ -48,6 +50,7 @@ func _initialize() -> void:
 func _run() -> void:
 	# A single watchdog covers aborted coroutines; there is no sleep/poll loop.
 	create_timer(90.0).timeout.connect(_deadline)
+	original_buses = _bus_layout()
 	_release_actions()
 	_test_artwork()
 	root.size = VIEW_SIZE
@@ -59,7 +62,11 @@ func _run() -> void:
 	if not _check(game != null, "main scene instantiates actual game", "GameScript", game):
 		await _finish()
 		return
+	# Observe replaced playbacks too, including the startup cue, without owning them.
+	game.sound.cue_played.connect(_on_audio_cue)
 	root.add_child(game)
+	if game.sound.fireplace.has_stream_playback():
+		playback_refs.append(weakref(game.sound.fireplace.get_stream_playback()))
 	await _settle()
 	game.set_physics_process(false)
 	# Advance the actual animation implementation with the same deterministic dt.
@@ -1083,6 +1090,14 @@ func _on_choice(id: String) -> void:
 	clicked_choices.append(id)
 
 
+func _on_audio_cue(cue: String) -> void:
+	var player: AudioStreamPlayer = game.sound.lute
+	if cue != "lute":
+		player = game.sound.voices[posmod(game.sound._voice_index - 1, game.sound.voices.size())]
+	if player.has_stream_playback():
+		playback_refs.append(weakref(player.get_stream_playback()))
+
+
 func _begin(name: String) -> void:
 	section = name
 	section_passed = passed
@@ -1129,6 +1144,9 @@ func _finish() -> void:
 	if finishing:
 		return
 	finishing = true
+	section = "cleanup"
+	var cleanup_passed: int = passed
+	var cleanup_failed: int = failed
 	_release_actions()
 	var pressed: Array[String] = []
 	for action: StringName in InputMap.get_actions():
@@ -1136,13 +1154,83 @@ func _finish() -> void:
 			pressed.append(str(action))
 	_equal(pressed, [], "cleanup releases all Input actions")
 	var instance: WeakRef = weakref(game) if is_instance_valid(game) else null
+	var audio_nodes: Array[WeakRef] = []
+	var owned_resource_refs: Array[WeakRef] = []
+	var own_buses: Array[StringName] = []
+	# Capture before queue_free; only WeakRefs and scalar bus identities cross awaits.
+	if is_instance_valid(game) and is_instance_valid(game.sound):
+		own_buses.assign([game.sound.master_bus, game.sound.ambience_bus, game.sound.music_bus])
+		audio_nodes.append(weakref(game.sound))
+		for child: Node in game.sound.get_children():
+			audio_nodes.append(weakref(child))
+		owned_resource_refs.assign([
+			weakref(game.sound.fireplace.stream), weakref(game.sound.fire_pan), weakref(game.sound.lute_pan),
+		])
+	_check(not _retained(playback_refs).is_empty(), "cleanup observes live native playback before queue_free", "> 0 live playbacks", _retained(playback_refs))
+	_equal(_retained(audio_nodes).size(), 9, "cleanup tracks the live sound node and all eight players")
+	_equal(_retained(owned_resource_refs).size(), 3, "cleanup tracks the live loop Resource and both panners")
+	_equal(own_buses.size(), 3, "cleanup tracks all three owned buses")
+	print("GAME_EXIT_SNAPSHOT: before_queue_free playbacks=%s owned_resources=%s" % [
+		_retained(playback_refs), _retained(owned_resource_refs)])
 	if is_instance_valid(game):
 		game.queue_free()
 	game = null
 	await process_frame
 	await process_frame
 	_check(instance == null or instance.get_ref() == null, "scene freed after two frames", "no surviving game", instance.get_ref() if instance != null else null)
+	_equal(_retained(audio_nodes), [], "sound and every player are freed after two frames")
+	var bus_indexes: Array[int] = []
+	for bus: StringName in own_buses:
+		bus_indexes.append(AudioServer.get_bus_index(bus))
+		_equal(AudioServer.get_bus_index(bus), -1, "production exit removes owned bus " + str(bus))
+	var restored_buses: Array[Dictionary] = _bus_layout()
+	_equal(restored_buses, original_buses, "exit preserves exact original bus layout including Master mute/volume")
+	print("GAME_EXIT_SNAPSHOT: after_two_frames playbacks=%s owned_resources=%s bus_indexes=%s" % [
+		_retained(playback_refs), _retained(owned_resource_refs), bus_indexes])
+	# Like test_sound: stop/remove is consumed by AudioServer's thread, not by
+	# two fast headless frames. Wait once, then fail for any retained native object.
+	# Never repair failed production cleanup by removing buses or force-freeing resources.
+	var drain_started: int = Time.get_ticks_usec()
+	await create_timer(0.25).timeout
+	await process_frame
+	var retained_playbacks: Array[String] = _retained(playback_refs)
+	var retained_resources: Array[String] = _retained(owned_resource_refs)
+	_equal(retained_playbacks, [], "audio thread releases every observed playback after bounded drain")
+	_equal(retained_resources, [], "owned loop Resource and both panners are released")
+	print("GAME_CLEANUP: " + JSON.stringify({
+		"tracked_playbacks": playback_refs.size(), "tracked_audio_nodes": audio_nodes.size(),
+		"tracked_owned_resources": owned_resource_refs.size(), "retained_playbacks": retained_playbacks,
+		"retained_owned_resources": retained_resources, "bus_indexes": bus_indexes,
+		"original_buses": original_buses, "restored_buses": restored_buses,
+		"drain_seconds": (Time.get_ticks_usec() - drain_started) / 1000000.0,
+		"passed": passed - cleanup_passed, "failed": failed - cleanup_failed,
+	}))
 	print("GAME_COVERAGE: sections=%d/%d; production_pngs=38; route_runs=%d; route_samples=%d; layout_rects=%d; requests=%d; responses=%d; actual_choice_clicks=%d" % [
 		completed.size(), SECTIONS.size(), route_runs, route_samples, layout_rects, requests.size(), responses.size(), clicked_choices.size()])
 	print("GAME_TESTS: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
+
+
+func _retained(instances: Array[WeakRef]) -> Array[String]:
+	# This synchronous helper releases its temporary strong reference before any await.
+	var result: Array[String] = []
+	for instance: WeakRef in instances:
+		if instance == null:
+			continue
+		var object: Object = instance.get_ref()
+		if object != null:
+			result.append("%s:%d" % [object.get_class(), object.get_instance_id()])
+	return result
+
+
+func _bus_layout() -> Array[Dictionary]:
+	# Match test_sound's read-only snapshot; effect IDs never retain Resources.
+	var result: Array[Dictionary] = []
+	for index: int in range(AudioServer.bus_count):
+		var effects: Array[int] = []
+		for effect: int in range(AudioServer.get_bus_effect_count(index)):
+			effects.append(AudioServer.get_bus_effect(index, effect).get_instance_id())
+		result.append({"name": str(AudioServer.get_bus_name(index)), "send": str(AudioServer.get_bus_send(index)),
+			"mute": AudioServer.is_bus_mute(index), "volume_db": AudioServer.get_bus_volume_db(index),
+			"solo": AudioServer.is_bus_solo(index), "effects": effects})
+	return result
