@@ -98,7 +98,7 @@ func _ready() -> void:
 		elif argument.begins_with("--qa-exit-after="):
 			_qa_exit_after = maxf(0.0, argument.trim_prefix("--qa-exit-after=").to_float())
 	_write_qa_state()
-	print("STARLIGHT_INN_READY: four lively residents, eight-frame walks, four daylight scenes; offline demo and real Azure bridge retained; no automatic login dialogs")
+	print("STARLIGHT_INN_READY: five lively residents, eight-frame walks, four daylight scenes; offline demo and real Azure bridge retained; no automatic login dialogs")
 
 
 func _setup_input() -> void:

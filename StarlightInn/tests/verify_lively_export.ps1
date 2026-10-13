@@ -76,7 +76,7 @@ try {
 
 $textures = @($entries | Where-Object { $_.path -like '.godot/imported/*.ctex' })
 $audio = @($entries | Where-Object { $_.path -like '.godot/imported/*.sample' })
-if ($textures.Count -ne 210 -or $audio.Count -ne 9) { throw "Unexpected embedded art/audio count: $($textures.Count)/$($audio.Count)" }
+if ($textures.Count -ne 259 -or $audio.Count -ne 9) { throw "Unexpected embedded art/audio count: $($textures.Count)/$($audio.Count)" }
 foreach ($required in @('scripts/game.gdc', 'scripts/residents.gdc', 'scripts/npc_scenes.gdc', 'scripts/npc_catalog.gdc', 'scripts/dialogue.gdc', 'scripts/demo_provider.gdc', 'scripts/inn_ui.gdc', 'scripts/day_cycle.gdc', 'scripts/actor.gdc', 'scripts/azure_bridge.gdc')) {
     if (@($entries | Where-Object { $_.path -eq $required }).Count -ne 1) { throw "Missing gameplay script: $required" }
 }
@@ -85,7 +85,7 @@ foreach ($phase in @('dawn', 'day', 'sunset', 'night')) {
         throw "Missing background: $phase"
     }
 }
-foreach ($person in @('mira', 'oren', 'eve', 'finn', 'traveler')) {
+foreach ($person in @('mira', 'oren', 'eve', 'finn', 'lyra', 'traveler')) {
     foreach ($direction in @('down', 'left', 'right', 'up')) {
         foreach ($frame in 0..7) {
             $pattern = '.godot/imported/' + $person + '_' + $direction + '_' + $frame + '.png-*.ctex'
@@ -119,4 +119,4 @@ $result = [ordered]@{
     embedded_pck = $entries
 }
 $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $root 'qa/lively-package-verification.json') -Encoding utf8
-Write-Output 'LIVELY_EXPORT_STATIC_TEST: PASS; 210 current textures, 9 original audio files, all eight-frame directions, six-file ZIP, public configuration preserved'
+Write-Output 'LIVELY_EXPORT_STATIC_TEST: PASS; 259 current textures, 9 original audio files, all eight-frame directions, six-file ZIP, public configuration preserved'

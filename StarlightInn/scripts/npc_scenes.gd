@@ -48,6 +48,19 @@ const SCENES: Array[Dictionary] = [
 		["finn", "那写你邀请了它。"],
 		["eve", "这个可以。我确实邀请过。"],
 	]},
+	{"id": "roadside_soup", "participants": ["mira", "lyra"], "lines": [
+		["mira", "这回总该坐下吃完了吧？"],
+		["lyra", "只要没有一封信突然长出腿。"],
+		["mira", "有腿也先喝汤。跑远了我再给你盛。"],
+		["lyra", "那我替下一碗也说声谢谢。"],
+	]},
+	{"id": "rhythm_of_boots", "participants": ["finn", "lyra"], "lines": [
+		["finn", "你的脚步声正好能给新曲子打拍子。"],
+		["lyra", "前半程快，后半程慢。"],
+		["finn", "为什么？"],
+		["lyra", "因为后半程在上坡。"],
+		["finn", "好，一首很诚实的进行曲。"],
+	]},
 	{"id": "tea_temperature", "participants": ["mira", "oren", "eve"], "lines": [
 		["mira", "茶正好，趁热喝。"],
 		["eve", "“正好”是多少度？我想记下来。"],

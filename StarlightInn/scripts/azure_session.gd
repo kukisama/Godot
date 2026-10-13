@@ -257,7 +257,7 @@ func _reply(json: String) -> void:
 		"select_subscription":
 			message = "已选择订阅：%s。可找奥伦查询并选择真实 VM、伊芙读取属性、菲恩查询资源组。" % context.get("subscription_name", "")
 		"logout":
-			message = "已注销本应用，四位住客恢复本地演示。"
+			message = "已注销本应用，四位云端话题住客恢复本地演示；莱拉始终保持本地故事。"
 		"configure":
 			settings = data
 		"tenants", "subscriptions", "vms", "resource_groups":

@@ -53,6 +53,7 @@ var modal_body: RichTextLabel
 var modal_title: Label
 var modal_kind: String = ""
 var _displayed_npc: String = ""
+var _displayed_portrait: String = ""
 var _last_text: String = ""
 var _reveal: float = 0.0
 
@@ -101,7 +102,7 @@ func _build_hud() -> void:
 	_button(self, "J  旅人手记", Rect2(1365, 94, 207, 44), func() -> void: journal_requested.emit(), 18)
 	var quest := _panel(self, Rect2(29, 151, 288, 88), Color(0.025, 0.068, 0.08, 0.78), Color("485c5a"))
 	_label(quest, "今夜的小小约定", Rect2(16, 10, 260, 29), 20, GOLD)
-	progress_text = _label(quest, "认识四位住客    0 / 4", Rect2(16, 46, 260, 25), 18, MUTED)
+	progress_text = _label(quest, "认识五位住客    0 / 5", Rect2(16, 46, 260, 25), 18, MUTED)
 	time_button = _button(self, "夜泊 · 星灯长明  /  T", Rect2(29, 249, 288, 43), func() -> void: time_requested.emit(), 17)
 	time_button.tooltip_text = "时段会自动流转；点击或按 T，平滑切换到下一种光景。"
 	for id: String in Catalog.IDS:
@@ -232,12 +233,13 @@ func _build_modal() -> void:
 func refresh() -> void:
 	dialog_panel.visible = model.is_open
 	dialog_shade.visible = model.is_open
-	progress_text.text = "认识四位住客    %d / 4" % model.visited.size()
-	if model.visited.size() == 4:
-		progress_text.text = "四位住客，都记得你了  ✓"
+	progress_text.text = "认识五位住客    %d / 5" % model.visited.size()
+	if model.visited.size() == Catalog.IDS.size():
+		progress_text.text = "五位住客，都记得你了  ✓"
 	if not model.is_open:
 		input_line.release_focus()
 		_displayed_npc = ""
+		_displayed_portrait = ""
 		_last_text = ""
 		return
 	toast.visible = false
@@ -246,7 +248,13 @@ func refresh() -> void:
 		input_line.text = ""
 		input_counter.text = "0 / 280"
 		_displayed_npc = model.npc_id
-		portrait.texture = load("res://assets/ui/portrait_%s.png" % model.npc_id)
+	var portrait_path: String = "res://assets/ui/portrait_%s.png" % model.npc_id
+	if model.npc_id == "lyra":
+		var expression: String = {"root": "smile", "road_story": "laugh", "satchel": "determined", "storm": "concern"}.get(model.page, "neutral")
+		portrait_path = "res://assets/ui/lyra_%s.png" % expression
+	if portrait_path != _displayed_portrait:
+		portrait.texture = load(portrait_path)
+		_displayed_portrait = portrait_path
 	npc_name.text = "%s  ·  %s" % [npc.name, npc.title]
 	npc_name.add_theme_color_override("font_color", npc.accent)
 	npc_title.text = ("正在读取真实 Azure……" if model.busy else "真实 Azure · 只读查询 · 未调用 AI") if model.real_mode() else ("正在整理本地回信……" if model.busy else "聊一个话题，或把故事留到下一次。")
@@ -336,8 +344,9 @@ func show_guide() -> void:
 	modal_title.text = "旅店指南"
 	modal_body.text = "在星灯下，自由走走\n\nWASD / 方向键：移动。Shift：走快一点。\n鼠标点地面：绕开家具走过去；点住客：走近后自动交谈。\nE / Enter：与最近的住客交谈。1–4：选择当前话题。\nEsc：关闭手记或对话。J：查看手记。F11：切换全屏。\n\n米拉 · 旅店主人——旅店向导与小故事。\n奥伦 · 云务管家——示例虚拟机清单与关机流程预览。\n伊芙 · 星术鉴定师——示例资源属性与标签。\n菲恩 · 吟游诗人——故事、API 讲解与自由输入。\n\n本版仅预留能力接口，所有回复都在本机生成。\n没有连接 AI / Azure，也不会执行任何真实操作。"
 	modal_body.scroll_to_line(0)
-	modal_body.text = modal_body.text.replace("本版仅预留能力接口，所有回复都在本机生成。\n没有连接 AI / Azure，也不会执行任何真实操作。", "未登录时，上面的四话题为完整离线演示，菲恩自由输入是本地模板、未接 AI。\n右上角 Azure 登记簿用于公开配置和 WAM 登录。登录后直接与四位住客交谈：米拉查询目录并明确选择订阅；奥伦查询并选择真实 VM；伊芙读取同一 VM 属性和标签；菲恩查询真实资源组。返回在原对话框显示，可翻页和取消。\n真实模式没有自由聊天，也没有启动/停止按钮。详见 AAD_SETUP.md。")
+	modal_body.text = modal_body.text.replace("本版仅预留能力接口，所有回复都在本机生成。\n没有连接 AI / Azure，也不会执行任何真实操作。", "未登录时，五位住客都有完整离线话题，菲恩自由输入是本地模板、未接 AI。\n右上角 Azure 登记簿用于公开配置和 WAM 登录。登录后原有四位云端话题住客分工不变：米拉查询目录并明确选择订阅；奥伦查询并选择真实 VM；伊芙读取同一 VM 属性和标签；菲恩查询真实资源组。莱拉始终只讲本地旅途故事。返回在原对话框显示，可翻页和取消。\n真实模式没有自由聊天，也没有启动/停止按钮。详见 AAD_SETUP.md。")
 	modal_body.text += "\n\n声音默认开启。M：一键静音 / 恢复；输入文字时不会触发。\n木地板脚步、炉火、回信铃与鲁特琴短句均为原创合成。"
+	modal_body.text += "\n莱拉 · 巡路信使——旅途见闻、行囊和山雨故事；始终为纯本地角色。"
 	modal_body.text += "\n\n住客会散步、挥手和自言自语，靠近彼此时会停下来接话。\n两人闲聊、三人和四人小剧场逐句在说话者头顶显示，每句约两秒。\n开始交谈或打开界面会中断小剧场，点选的住客会停下来等你。\n这些日常台词只在本地发生，不调用 AI 或 Azure。\n初晓、白昼、夕照、夜泊会自动流转；T 或左上光景按钮可提前切换。"
 	modal.visible = true
 	_release_focus()
@@ -345,7 +354,7 @@ func show_guide() -> void:
 
 func show_journal() -> void:
 	modal_kind = "journal"
-	modal_title.text = "旅人手记  ·  %d / 4 位住客" % model.visited.size()
+	modal_title.text = "旅人手记  ·  %d / 5 位住客" % model.visited.size()
 	var notes: String = "今夜的交谈，只留在这次旅途中。\n演示与真实查询在各条回信中明确标注；历史不代表当前实时状态。\n"
 	for id: String in Catalog.IDS:
 		var npc: Dictionary = Catalog.get_npc(id)

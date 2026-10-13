@@ -58,7 +58,7 @@ func _prepare(participants: Array) -> void:
 	game.residents.random.seed = 1791
 	game.player.set_ground_position(Vector2(600, 910))
 	var slots: Array[Vector2] = [Vector2(740, 680), Vector2(855, 680), Vector2(740, 795), Vector2(855, 795)]
-	var distant: Array[Vector2] = [Vector2(400, 410), Vector2(1100, 410), Vector2(450, 910), Vector2(1150, 900)]
+	var distant: Array[Vector2] = [Vector2(400, 410), Vector2(1100, 410), Vector2(450, 910), Vector2(1150, 900), Vector2(930, 430)]
 	for index in range(Catalog.IDS.size()):
 		var id: String = Catalog.IDS[index]
 		var actor = game.npcs[id]

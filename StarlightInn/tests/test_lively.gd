@@ -66,6 +66,7 @@ func _run() -> void:
 	game._close_dialogue()
 	var cooldown_before: int = game.residents.chatter_count
 	game.residents._room_chatter_cooldown = 0.0
+	game.residents._scan_time = 1000.0
 	game.residents.states["mira"].greeting_cooldown = 0.0
 	game.residents.states["mira"].was_near = false
 	_step(DT)
@@ -74,6 +75,7 @@ func _run() -> void:
 	_step(0.2)
 	_check(game.residents.chatter_count == cooldown_before + 1, "standing nearby does not repeat the greeting every frame", game.residents.chatter_count)
 	var youth = game.npcs["finn"]
+	youth.set_conversation(false)
 	youth.play_gesture("celebrate", 1.7)
 	youth._process(0.4)
 	_check(youth.current_direction == "celebrate" and youth.sprite.position.length() > 68.0 * youth.sprite.pixel_size + 0.08,

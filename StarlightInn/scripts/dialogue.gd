@@ -46,7 +46,7 @@ func setup_azure(session: Node) -> void:
 
 
 func real_mode() -> bool:
-	return azure != null and azure.connected()
+	return npc_id != "lyra" and azure != null and azure.connected()
 
 
 func _ready() -> void:
@@ -159,6 +159,14 @@ func choose(choice_id: String) -> void:
 					_begin_request("ai.chat", "explain")
 				"free_chat":
 					_show_page("input", "【本地预设对话 · 未调用 AI】写一句想说的话吧，最多 280 字。我的回答来自关键词和预设模板，不会离开这间电脑里的旅店。")
+		"lyra":
+			match choice_id:
+				"road_story":
+					_show_page("road_story", "【本地旅途故事】南边旧桥少了一块木板，路人都绕着走。后来有人在旁边摆了盏小灯，谁也没署名。第二天桥还没修好，但每个人都知道该在哪一步放慢脚。")
+				"satchel":
+					_show_page("satchel", "【本地旅途故事】防水信袋、短绳、粉笔、针线和一小包盐。地图会过时，绳结和补丁不会。真正重要的信放在贴近心口的内层，雨先淋到我。")
+				"storm":
+					_show_page("storm", "【本地旅途故事】最险的不是雷，是雨里看不清下一块落脚石。我停下来等了很久，直到听见山羊铃。慢一点让我错过晚饭，却没有错过回来的路。")
 
 
 func send_message(message: String) -> void:
@@ -219,6 +227,8 @@ func _show_root() -> void:
 			choices = [{"id": "inspect", "label": "查看演示属性"}, {"id": "tags", "label": "看看演示标签"}, {"id": "explain_resource", "label": "资源是什么？"}, {"id": "goodbye", "label": "道别，留一点星砂"}]
 		"finn":
 			choices = [{"id": "story", "label": "讲一个星灯故事"}, {"id": "explain_api", "label": "说说 API 是什么"}, {"id": "free_chat", "label": "我想随意说几句"}, {"id": "goodbye", "label": "道别，把故事留到明天"}]
+		"lyra":
+			choices = [{"id": "road_story", "label": "听一段路上的故事"}, {"id": "satchel", "label": "看看巡路信使的行囊"}, {"id": "storm", "label": "问问那场山雨"}, {"id": "goodbye", "label": "祝下一段路平安"}]
 
 
 func _show_page(next_page: String, message: String) -> void:

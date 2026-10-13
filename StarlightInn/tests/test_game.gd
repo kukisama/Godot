@@ -10,12 +10,13 @@ const VIEW_SIZE := Vector2i(1600, 1000)
 const DT: float = 1.0 / 60.0
 const MAX_ROUTE_STEPS: int = 360
 const ACTIONS: Array[String] = ["inn_left", "inn_right", "inn_up", "inn_down", "inn_sprint"]
-const IDS: Array[String] = ["mira", "oren", "eve", "finn"]
+const IDS: Array[String] = ["mira", "oren", "eve", "finn", "lyra"]
 const MENUS: Dictionary = {
 	"mira": ["guide", "residents", "legend", "goodbye"],
 	"oren": ["list_running", "list_all", "shutdown_preview", "chat"],
 	"eve": ["inspect", "tags", "explain_resource", "goodbye"],
 	"finn": ["story", "explain_api", "free_chat", "goodbye"],
+	"lyra": ["road_story", "satchel", "storm", "goodbye"],
 }
 const SECTIONS: Array[String] = [
 	"artwork", "scene_and_camera", "keyboard_and_animation", "collisions",
@@ -103,6 +104,9 @@ func _test_artwork() -> void:
 		expected.append("res://assets/world/inn_hall_%s.png" % phase)
 	for id: String in IDS:
 		expected.append("res://assets/ui/portrait_%s.png" % id)
+		if id == "lyra":
+			for expression: String in ["neutral", "smile", "laugh", "concern", "surprise", "anger", "sad", "determined"]:
+				expected.append("res://assets/ui/lyra_%s.png" % expression)
 		for index: int in range(8):
 			expected.append("res://assets/sprites/%s_%d.png" % [id, index])
 		for direction: String in ["down", "left", "right", "up"]:
@@ -120,7 +124,7 @@ func _test_artwork() -> void:
 				actual.append(directory.path_join(filename))
 	expected.sort()
 	actual.sort()
-	_equal(actual.size(), 210, "exactly 210 production PNGs, excluding source sheets")
+	_equal(actual.size(), 259, "exactly 259 production PNGs, excluding source sheets")
 	_equal(actual, expected, "production PNG manifest")
 	for path: String in expected:
 		var texture: Texture2D = load(path) as Texture2D
@@ -134,7 +138,7 @@ func _test_artwork() -> void:
 			"OK and nonempty CPU image", {"error": decode_error, "size": image.get_size()}):
 			_check(image.get_used_rect().has_area(), "PNG contains opaque artwork " + path,
 				"nonempty used rect", image.get_used_rect())
-	print("GAME_RENDERING: SKIPPED -- headless has no rendered-frame/screenshot validation; 210 CPU PNGs and UI rects only")
+	print("GAME_RENDERING: SKIPPED -- headless has no rendered-frame/screenshot validation; 259 CPU PNGs and UI rects only")
 	_end()
 
 
@@ -143,7 +147,7 @@ func _test_scene_and_camera() -> void:
 	_equal(DisplayServer.get_name(), "headless", "headless execution, no GUI")
 	_equal(root.size, VIEW_SIZE, "root window size")
 	_near_vector(root.get_visible_rect().size, Vector2(VIEW_SIZE), 0.01, "logical viewport size")
-	_equal(game.npcs.size(), 4, "four actual NPC nodes")
+	_equal(game.npcs.size(), 5, "five actual NPC nodes")
 	_equal(game.dialogue.port.provider.get_script(), DemoProvider, "real local provider, not a mock")
 	_near(game.dialogue.port.latency_seconds, 0.35, 0.0001, "production port latency is unchanged")
 	_equal(game.ui.model, game.dialogue, "UI uses actual dialogue instance")
@@ -355,7 +359,8 @@ func _test_mouse_navigation() -> void:
 			_equal(game.route.size(), 0, id + " conversation clears remaining route")
 			_equal(game.pending_npc, "", id + " conversation clears pending NPC")
 			_equal(game.player.moving, false, id + " stops on conversation open")
-			_equal(game.ui.portrait.texture.resource_path, "res://assets/ui/portrait_%s.png" % id, id + " actual portrait")
+			var expected_portrait: String = "res://assets/ui/lyra_smile.png" if id == "lyra" else "res://assets/ui/portrait_%s.png" % id
+			_equal(game.ui.portrait.texture.resource_path, expected_portrait, id + " actual portrait")
 			_assert_layout(id + " mouse arrival " + hit)
 	_fixture(GameScript.SPAWN)
 	await _settle()
@@ -467,8 +472,8 @@ func _test_menus_and_routing() -> void:
 					await _click_choice("back")
 					_equal(game.dialogue.page, "root", label + " real back Button returns to menu")
 					_equal(game.dialogue.is_open, true, label + " back does not close")
-	_equal(game.dialogue.visited.size(), 4, "all four NPCs visited through input")
-	_equal(game.ui.progress_text.text, "四位住客，都记得你了  ✓", "actual HUD visit completion")
+	_equal(game.dialogue.visited.size(), 5, "all five NPCs visited through input")
+	_equal(game.ui.progress_text.text, "五位住客，都记得你了  ✓", "actual HUD visit completion")
 	_end()
 
 
@@ -1212,7 +1217,7 @@ func _finish() -> void:
 		"drain_seconds": (Time.get_ticks_usec() - drain_started) / 1000000.0,
 		"passed": passed - cleanup_passed, "failed": failed - cleanup_failed,
 	}))
-	print("GAME_COVERAGE: sections=%d/%d; production_pngs=210; route_runs=%d; route_samples=%d; layout_rects=%d; requests=%d; responses=%d; actual_choice_clicks=%d" % [
+	print("GAME_COVERAGE: sections=%d/%d; production_pngs=259; route_runs=%d; route_samples=%d; layout_rects=%d; requests=%d; responses=%d; actual_choice_clicks=%d" % [
 		completed.size(), SECTIONS.size(), route_runs, route_samples, layout_rects, requests.size(), responses.size(), clicked_choices.size()])
 	print("GAME_TESTS: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)

@@ -108,12 +108,12 @@ func run() -> void:
 
 
 func _test_catalog() -> void:
-	_expect(NpcCatalog.IDS == ["mira", "oren", "eve", "finn"], "catalog IDs and order")
-	var names: Array[String] = ["米拉", "奥伦", "伊芙", "菲恩"]
-	var titles: Array[String] = ["旅店主人", "云务管家", "星术鉴定师", "吟游诗人"]
-	var positions: Array[Vector2] = [Vector2(825, 392), Vector2(356, 505), Vector2(1159, 592), Vector2(417, 785)]
-	var labels: Array[String] = ["旅店向导", "云端投影 · 演示", "资源鉴定 · 演示", "AI 对话 · 演示"]
-	var colors: Array[Color] = [Color("f4c878"), Color("65d7e7"), Color("bda2f4"), Color("94d699")]
+	_expect(NpcCatalog.IDS == ["mira", "oren", "eve", "finn", "lyra"], "catalog IDs and order")
+	var names: Array[String] = ["米拉", "奥伦", "伊芙", "菲恩", "莱拉"]
+	var titles: Array[String] = ["旅店主人", "云务管家", "星术鉴定师", "吟游诗人", "巡路信使"]
+	var positions: Array[Vector2] = [Vector2(825, 392), Vector2(356, 505), Vector2(1159, 592), Vector2(417, 785), Vector2(950, 650)]
+	var labels: Array[String] = ["旅店向导", "云端投影 · 演示", "资源鉴定 · 演示", "AI 对话 · 演示", "旅途见闻 · 本地故事"]
+	var colors: Array[Color] = [Color("f4c878"), Color("65d7e7"), Color("bda2f4"), Color("94d699"), Color("43c6b8")]
 	for index: int in range(NpcCatalog.IDS.size()):
 		var id: String = NpcCatalog.IDS[index]
 		var npc: Dictionary = NpcCatalog.get_npc(id)
@@ -220,6 +220,7 @@ func _test_roots_and_mira() -> void:
 		"oren": ["list_running", "list_all", "shutdown_preview", "chat"],
 		"eve": ["inspect", "tags", "explain_resource", "goodbye"],
 		"finn": ["story", "explain_api", "free_chat", "goodbye"],
+		"lyra": ["road_story", "satchel", "storm", "goodbye"],
 	}
 	for id: String in NpcCatalog.IDS:
 		_expect(dialogue.open_for(id), "open " + id)
@@ -382,7 +383,7 @@ func _test_finn_and_history() -> void:
 	_expect(dialogue.history != saved_finn and dialogue.history_by_npc["finn"] == saved_finn, "histories do not leak across NPCs")
 	dialogue.open_for("finn")
 	_expect(dialogue.history == saved_finn, "reopening restores history without duplicate greeting")
-	_expect(dialogue.visited.size() == 4, "visited remembers all four NPCs")
+	_expect(dialogue.visited.size() == 5, "visited remembers all five NPCs")
 	dialogue.choose("goodbye")
 	_expect(not dialogue.is_open and not dialogue.allow_input and dialogue.history.is_empty(), "Finn goodbye clears live UI but retains stored history")
 	_expect(dialogue.history_by_npc["finn"] == saved_finn, "close preserves session history")
