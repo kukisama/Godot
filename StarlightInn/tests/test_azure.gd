@@ -105,12 +105,14 @@ func _run() -> void:
 		check(game.ui.azure_npc_button.visible == (id != "finn"), id + " separate real entry visibility")
 		if id != "finn":
 			await click(game.ui.azure_npc_button)
-			check(panel.visible and panel.page == id, id + " clicked true NPC entry")
+			check(panel.visible and panel.page == "mira", id + " entry opens registration only")
+			check_registration_read_only()
 			key(KEY_ESCAPE)
 			check(not panel.visible and game.dialogue.is_open, "Escape closes only Azure panel")
 		game._close_dialogue()
 	await click(game.ui.azure_button)
 	check(panel.visible and panel.page == "mira", "HUD opens real registration")
+	check_registration_read_only()
 	var before: int = fake.calls.size()
 	panel.client_edit.text = "not-a-guid"
 	await click(find_button(panel, "保存公开应用配置"))
@@ -128,6 +130,7 @@ func _run() -> void:
 	check(session.tenants.size() == 1, "directory response listed")
 	await click(find_button(panel, "读取当前目录订阅"))
 	check(session.subscriptions.size() == 1, "subscription response listed")
+	check(session.context.subscription_id.is_empty(), "reading subscriptions never automatically selects one")
 	await click(find_button_prefix(panel, "选择订阅："))
 	check(session.context.subscription_id == FakeBridge.SUB, "explicit subscription selection")
 	check("Fixture subscription" in game.ui.azure_button.text, "HUD current subscription")
@@ -145,63 +148,24 @@ func _run() -> void:
 	await settle()
 	check(game.sound.muted == muted and not game.ui.modal.visible and not game.dialogue.is_open, "J/M/E/1 typing cannot trigger underlying shortcuts")
 	check(panel.client_edit.text.ends_with("jme1"), "letters actually enter top field")
-	await click(find_button(panel, "奥伦 · 云务账簿"))
-	await click(find_button(panel, "刷新真实 VM"))
-	check(session.vms.size() == 1 and session.more.vms, "VM first page and next-page marker")
-	await click(find_button(panel, "继续读取下一页"))
-	check(session.vms.size() == 2 and not session.more.vms, "VM paging append, no silent truncation")
-	panel.filter_group = "absent"
-	check(not panel.matches(fake.vm), "resource-group filter")
-	panel.filter_group = "fixture"
-	panel.filter_name = "vm"
-	check(panel.matches(fake.vm), "name and resource-group match")
-	panel.filter_state = "stopped"
-	check(not panel.matches(fake.vm), "state filter exact")
-	panel.filter_state = "all"
-	panel.refresh()
-	await settle()
-	await click(find_button_prefix(panel, "fixture-vm |"))
-	check(session.selected.resource_id == FakeBridge.VM_ID, "full resource ID selection")
-	await click(find_button(panel, "伊芙 · 真实资源鉴定"))
-	await click(find_button(panel, "伊芙：读取真实属性 / 标签 / 实例状态"))
-	check(session.selected.tags.get("inspected") == "yes", "Eve reads same selected real VM")
-	check(fake.calls.back().args.resource_id == FakeBridge.VM_ID, "Eve never passes demo name")
-	await click(find_button(panel, "奥伦 · 云务账簿"))
-	await click(find_button(panel, "停止并解除分配…（下一步核对）"))
-	check(not session.confirmation.is_empty() and fake.writes == 0, "prepare does not execute")
-	var plain: String = content_text()
-	for target: String in ["fixture@example.invalid", FakeBridge.TENANT, FakeBridge.SUB, "fixture-rg", "fixture-vm", FakeBridge.VM_ID, "deallocate", "磁盘", "2099"]:
-		check(target in plain, "confirmation explicitly shows " + target)
-	if DisplayServer.get_name() != "headless":
-		panel.content.get_parent().scroll_vertical = 0
-		await settle()
-		await RenderingServer.frame_post_draw
-		check(root.get_texture().get_image().save_png("res://qa/azure-confirmation.png") == OK, "actual graphical confirmation captured")
-	await click(find_button(panel, "取消：不提交真实操作"))
-	check(session.confirmation.is_empty() and fake.writes == 0, "cancel does not submit")
-	await click(find_button(panel, "启动…（下一步核对真实目标）"))
-	await click(find_button(panel, "确认启动"))
-	check(fake.writes == 1 and session.confirmation.is_empty(), "explicit confirm consumes nonce once")
-	session.execute()
-	check(fake.writes == 1, "repeated confirm cannot dispatch")
-	check("submitted" in session.message and "尚未完成" in session.message, "202 UI never claims success")
+	check_registration_read_only()
+	# Existing background jobs are fixture metadata, never submitted by this UI.
 	var record := {"id": "fixture-operation", "context": session.context.duplicate(true), "target": fake.vm, "action": "start", "state": "pending", "message": "FAKE cloud pending", "updated": "fixture time"}
 	fake.JournalChanged.emit(JSON.stringify([record]))
-	await click(find_button(panel, "真实操作记录"))
-	check(FakeBridge.VM_ID in content_text() and "pending" in content_text(), "operation journal bound original full target")
-	# A late response after close cannot revive UI or create a confirmation.
-	panel.open_for("oren")
+	check(session.operations.size() == 1 and session.operations[0].target.resource_id == FakeBridge.VM_ID, "background journal retains original full target without a journal tab")
+	# A late read response after close cannot revive UI or change its lists.
 	fake.hold = true
-	session.request("vms")
-	check(find_button(panel, "米拉 · Azure 登记簿").disabled, "tabs disabled during in-flight query / prepare")
+	await click(find_button(panel, "读取当前目录订阅"))
+	check(session.busy and find_button(panel, "米拉 · Azure 登记簿").disabled, "registration tab disabled during in-flight read")
 	before = fake.calls.size()
-	session.request("vms")
+	session.request("subscriptions")
 	check(fake.calls.size() == before, "busy repeat query blocked")
+	var subscriptions_before: Array = session.subscriptions.duplicate(true)
 	key(KEY_ESCAPE)
 	check(not panel.visible and not session.busy, "Escape releases local waiting state")
 	check(session.operations.size() == 1, "close does not remove submitted job")
 	fake.complete()
-	check(session.vms.is_empty() and session.confirmation.is_empty(), "late response after close discarded")
+	check(not panel.visible and session.subscriptions == subscriptions_before and session.confirmation.is_empty(), "late response after close discarded")
 	fake.hold = false
 	await click(game.ui.azure_button)
 	await click(panel.client_edit)
@@ -213,13 +177,19 @@ func _run() -> void:
 	check("不监听 localhost" in content_text(), "WAM-only boundary visible")
 	await click(find_button(panel, "换账户（明确选择）"))
 	check(fake.calls.back().args.browser == false and fake.calls.back().args.select_account, "native explicit account selection without browser")
+	check(session.context.subscription_id.is_empty() and session.subscriptions.is_empty(), "account selection clears prior subscription and requires explicit reselection")
 	fake.hold = true
+	var context_before_cancel: Dictionary = session.context.duplicate(true)
 	session.request("login", {"select_account": true})
+	var cancellations_before: int = fake.cancelled
 	await click(find_button(panel, "取消登录"))
-	check(fake.cancelled > 0, "cancel button reaches native auth cancellation")
+	check(fake.cancelled == cancellations_before + 1 and not session.busy and not session.restoring, "cancel button cancels this auth request and immediately unlocks UI")
+	var message_after_cancel: String = session.message
+	var context_after_cancel: Dictionary = session.context.duplicate(true)
+	check(session.connected() and context_after_cancel.account == context_before_cancel.account, "cancelling account switch preserves the existing account")
 	fake.complete(false, "CANCELLED_OR_TIMEOUT")
-	check(not session.busy and "CANCELLED_OR_TIMEOUT" in session.message, "auth cancellation cleanly unlocks UI")
-	for diagnostic: Array in [["AUTH_NATIVE_FAILED", "阶段: request_token; HRESULT: 0x80070005; ProviderError: 3400138760 (0xCAA20008)"], ["WAM_PROVIDER_MISSING", "阶段: find_provider; HRESULT: 0x00000000"], ["HELPER_BOOT_FAILED", "阶段: winrt_init; HRESULT: 0x80004005"], ["WAM_WINDOW_REQUIRED", "阶段: parent_window; HRESULT: 0x80070578"]]:
+	check(not session.busy and session.context == context_after_cancel and session.message == message_after_cancel, "late cancelled auth reply cannot change session or UI status")
+	for diagnostic: Array in [["AUTH_NATIVE_FAILED", "原生认证/初始化未完成；未输出原始异常或凭据。 阶段: request_token; HRESULT: 0x80070005; ProviderError: 3400138760 (0xCAA20008)"], ["WAM_PROVIDER_MISSING", "阶段: find_provider; HRESULT: 0x00000000"], ["HELPER_BOOT_FAILED", "阶段: winrt_init; HRESULT: 0x80004005"], ["WAM_WINDOW_REQUIRED", "阶段: parent_window; HRESULT: 0x80070578"]]:
 		session.request("login", {"select_account": true})
 		var pending: Dictionary = fake.pending.duplicate(true)
 		fake.pending = {}
@@ -227,14 +197,22 @@ func _run() -> void:
 		await settle()
 		check(not session.busy and diagnostic[0] in session.message and diagnostic[1] in session.message, "safe native diagnostics preserved by session " + diagnostic[0])
 		check(panel.content.get_child(0) is Label and panel.content.get_child(0).text == session.message, "real status Label displays complete safe phase/code " + diagnostic[0])
+		var status: Label = panel.content.get_child(0)
+		check(status.autowrap_mode == TextServer.AUTOWRAP_ARBITRARY and status.size.x <= panel.content.get_parent().size.x, "safe diagnostics stay within scrolling viewport " + diagnostic[0])
+		if diagnostic[0] == "AUTH_NATIVE_FAILED":
+			check(status.get_line_count() > 1 and status.get_visible_line_count() == status.get_line_count(), "long native diagnostics wrap without losing lines")
 	fake.hold = false
 	await click(find_button(panel, "注销本应用（不会退出 Windows / 撤销云操作）"))
 	check(not session.connected() and session.selected.is_empty() and session.vms.is_empty(), "logout clears real session targets")
 	check(session.operations.size() == 1, "logout preserves operation journal")
-	panel.open_for("oren")
+	check(find_button(panel, "读取目录").disabled and find_button(panel, "读取当前目录订阅").disabled, "disconnected registration disables real reads")
 	before = fake.calls.size()
-	await click(find_button(panel, "刷新真实 VM"))
+	session.request("vms")
 	check(fake.calls.size() == before and "登录" in session.message, "unconnected real list not demo fallback")
+	check_registration_read_only()
+	check(fake.writes == 0, "entire registration flow performs zero VM writes")
+	for request: Dictionary in fake.calls:
+		check(request.action in ["restore", "auto_login", "configure", "login", "logout", "tenants", "subscriptions", "select_subscription"], "registration dispatches only configuration/authentication/directory/subscription: " + request.action)
 	# Observe an actual GL render only in graphical run, never headless claim.
 	if DisplayServer.get_name() != "headless":
 		panel.open_for("mira")
@@ -251,6 +229,12 @@ func content_text() -> String:
 		if node is Label:
 			result += node.text + "\n"
 	return result
+
+
+func check_registration_read_only() -> void:
+	for caption: String in ["奥伦 · 云务账簿", "伊芙 · 真实资源鉴定", "真实操作记录", "刷新真实 VM", "启动…（下一步核对真实目标）", "停止并解除分配…（下一步核对）", "确认启动", "确认停止并解除分配"]:
+		check(find_button(panel, caption) == null, "registration has no removed tab/write control: " + caption)
+	check(session.confirmation.is_empty() and fake.writes == 0, "registration neither prepares nor executes cloud writes")
 
 
 func late_restore(request: Dictionary) -> void:

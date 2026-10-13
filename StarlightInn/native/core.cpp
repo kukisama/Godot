@@ -83,6 +83,23 @@ void Core::known(Snapshot const& s,std::string const& id){resource(id,text(s.con
 J Core::listvms(bool more){auto s=capture();auto path="/subscriptions/"+text(s.context,"subscription_id")+"/providers/Microsoft.Compute/virtualMachines";std::string url;{std::lock_guard lock(mutex);check(s);if(more){require(next.count("vms")!=0,"NO_MORE");url=next.at("vms");}else{next.erase("vms");url=std::string(arm)+path+version+"&statusOnly=true";}}
     auto raw=get(s.lease,url,s.cancel);A a;std::map<std::string,J> found;for(auto const& v:values(raw)){auto vm=mapvm(v.GetObject(),text(s.context,"subscription_id"));found[lower(text(vm,"resource_id"))]=vm;a.Append(vm);}auto n=text(raw,"nextLink");if(!n.empty())page_url(n,path);{std::lock_guard lock(mutex);check(s);if(!more)vms.clear();for(auto const& item:found)vms[item.first]=item.second;if(n.empty())next.erase("vms");else next["vms"]=n;}return page(a,!n.empty(),"缺失状态显示 unknown；筛选仅作用于已加载页。");
 }
+J Core::resourcegroups(bool more){
+    auto s=capture();auto path="/subscriptions/"+text(s.context,"subscription_id")+"/resourcegroups";std::string url;
+    {std::lock_guard lock(mutex);check(s);if(more){require(next.count("resource_groups")!=0,"NO_MORE");url=next.at("resource_groups");}else{next.erase("resource_groups");url=std::string(arm)+path+"?api-version=2021-04-01";}}
+    auto raw=get(s.lease,url,s.cancel);A items;
+    for(auto const& value:values(raw)){
+        auto row=value.GetObject();auto id=text(row,"id");auto name=text(row,"name");
+        require(!name.empty()&&clean(name)&&eq(id,"/subscriptions/"+text(s.context,"subscription_id")+"/resourceGroups/"+name),"INVALID_RESPONSE");
+        // Reuse canonical resource-group validation; do not trust returned paths.
+        resource(id+"/providers/Microsoft.Compute/virtualMachines/validation",text(s.context,"subscription_id"));
+        J item;put(item,"id",id);put(item,"name",name);put(item,"region",text(row,"location"));J tags;
+        for(auto const& pair:object(row,"tags")){require(pair.Value().ValueType()==JsonValueType::String,"INVALID_RESPONSE");tags.Insert(pair.Key(),pair.Value());}
+        put(item,"tags",tags);items.Append(item);
+    }
+    auto n=text(raw,"nextLink");if(!n.empty())page_url(n,path);
+    {std::lock_guard lock(mutex);check(s);if(n.empty())next.erase("resource_groups");else next["resource_groups"]=n;}
+    return page(items,!n.empty(),"资源组只读查询；可继续读取服务端下一页。");
+}
 J Core::inspect(std::string const& id){auto s=capture();known(s,id);auto vm=readvm(s.lease,s.context,id,s.cancel);{std::lock_guard lock(mutex);check(s);vms[lower(id)]=vm;}return vm;}
 void Core::no_active(std::string const& id){for(auto const& [key,job]:jobs){auto state=text(job.dto,"state");if(eq(text(object(job.dto,"target"),"resource_id"),id)&&state!="succeeded"&&state!="failed")throw Error("OPERATION_ACTIVE");}}
 J Core::prepare(std::string const& id,std::string const& action){require(action=="start"||action=="deallocate","UNSUPPORTED_ACTION");auto s=capture();known(s,id);auto vm=readvm(s.lease,s.context,id,s.cancel);auto nonce=uuid();J j;put(j,"nonce",nonce);put(j,"context",s.context);put(j,"target",vm);put(j,"action",action);put(j,"impact",action=="start"?"将启动真实 VM 并产生计算费用。":"将中断业务并解除分配；磁盘、IP 等仍可能计费，不是零费用。");
@@ -116,6 +133,7 @@ J Core::dispatch(std::string const& id,std::string const& action,J const& args,H
         else if(action=="tenants"||action=="subscriptions"){keys(args,{"more"});data=named(action,boolean(args,"more"));}
         else if(action=="select_subscription"){keys(args,{"id"});std::lock_guard lock(mutex);require(static_cast<bool>(lease),"NOT_CONNECTED");auto it=subs.find(lower(text(args,"id")));require(it!=subs.end(),"INVALID_SUBSCRIPTION");advance(text(context,"account"),text(context,"tenant_id"),text(context,"tenant_name"),text(it->second,"id"),text(it->second,"name"));remember();data=parse(encode(context));}
         else if(action=="vms"){keys(args,{"more"});data=listvms(boolean(args,"more"));}
+        else if(action=="resource_groups"){keys(args,{"more"});data=resourcegroups(boolean(args,"more"));}
         else if(action=="inspect"){keys(args,{"resource_id"});data=inspect(text(args,"resource_id"));}
         else if(action=="prepare"){keys(args,{"resource_id","action"});data=prepare(text(args,"resource_id"),text(args,"action"));}
         else if(action=="execute"){keys(args,{"nonce"});data=execute(text(args,"nonce"));}

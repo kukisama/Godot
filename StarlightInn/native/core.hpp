@@ -33,6 +33,7 @@ class Core {
     J readvm(std::shared_ptr<Lease>,J const&,std::string const&,Cancel const&);
     J named(std::string const&,bool);
     J listvms(bool);
+    J resourcegroups(bool);
     J inspect(std::string const&);
     J prepare(std::string const&,std::string const&);
     J execute(std::string const&);

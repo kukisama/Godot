@@ -69,6 +69,8 @@ func _run() -> void:
 		playback_refs.append(weakref(game.sound.fireplace.get_stream_playback()))
 	await _settle()
 	game.set_physics_process(false)
+	# Existing UI/navigation fixtures stay static; test_lively covers live residents.
+	game.residents.enabled = false
 	# Advance the actual animation implementation with the same deterministic dt.
 	game.player.set_process(false)
 	for id: String in IDS:
@@ -97,12 +99,17 @@ func _test_artwork() -> void:
 	var expected: Array[String] = [
 		"res://assets/world/inn_hall.png", "res://assets/ui/dialogue_frame.png",
 	]
+	for phase: String in ["dawn", "day", "sunset", "night"]:
+		expected.append("res://assets/world/inn_hall_%s.png" % phase)
 	for id: String in IDS:
 		expected.append("res://assets/ui/portrait_%s.png" % id)
-		for index: int in range(2):
+		for index: int in range(8):
 			expected.append("res://assets/sprites/%s_%d.png" % [id, index])
+		for direction: String in ["down", "left", "right", "up"]:
+			for index: int in range(8):
+				expected.append("res://assets/sprites/%s_%s_%d.png" % [id, direction, index])
 	for direction: String in ["down", "left", "right", "up"]:
-		for index: int in range(4):
+		for index: int in range(8):
 			expected.append("res://assets/sprites/traveler_%s_%d.png" % [direction, index])
 	for prop: String in ["books", "candles", "crest", "crystal", "ivy", "lantern", "noticeboard", "sparkle"]:
 		expected.append("res://assets/sprites/%s.png" % prop)
@@ -113,7 +120,7 @@ func _test_artwork() -> void:
 				actual.append(directory.path_join(filename))
 	expected.sort()
 	actual.sort()
-	_equal(actual.size(), 38, "exactly 38 production PNGs, excluding source sheets")
+	_equal(actual.size(), 210, "exactly 210 production PNGs, excluding source sheets")
 	_equal(actual, expected, "production PNG manifest")
 	for path: String in expected:
 		var texture: Texture2D = load(path) as Texture2D
@@ -127,7 +134,7 @@ func _test_artwork() -> void:
 			"OK and nonempty CPU image", {"error": decode_error, "size": image.get_size()}):
 			_check(image.get_used_rect().has_area(), "PNG contains opaque artwork " + path,
 				"nonempty used rect", image.get_used_rect())
-	print("GAME_RENDERING: SKIPPED -- headless has no rendered-frame/screenshot validation; 38 CPU PNGs and UI rects only")
+	print("GAME_RENDERING: SKIPPED -- headless has no rendered-frame/screenshot validation; 210 CPU PNGs and UI rects only")
 	_end()
 
 
@@ -146,7 +153,7 @@ func _test_scene_and_camera() -> void:
 	_equal(game.player.frames.size(), 4, "four player directions")
 	for direction: String in ["down", "left", "right", "up"]:
 		var strip: Array = game.player.frames.get(direction, [])
-		_equal(strip.size(), 4, "four traveler frames: " + direction)
+		_equal(strip.size(), 8, "eight traveler frames: " + direction)
 		for index: int in range(strip.size()):
 			_equal(strip[index].resource_path, "res://assets/sprites/traveler_%s_%d.png" % [direction, index],
 				"player frame binding %s/%d" % [direction, index])
@@ -155,19 +162,19 @@ func _test_scene_and_camera() -> void:
 		var record: Dictionary = Catalog.get_npc(id)
 		_equal(actor.actor_id, id, id + " actor identity")
 		_equal(actor.ground_position, record["position"], id + " ground placement")
-		_equal(actor.frames.get("idle", []).size(), 2, id + " two idle frames")
+		_equal(actor.frames.get("idle", []).size(), 4, id + " four expressive idle frames")
 		actor.idle_clock = 0.0
 		actor._process(0.0)
 		_equal(actor.sprite.texture.resource_path, "res://assets/sprites/%s_0.png" % id, id + " idle first texture")
-		actor._process(4.2)
+		actor._process(5.1)
 		_equal(actor.sprite.texture.resource_path, "res://assets/sprites/%s_1.png" % id, id + " idle second texture")
-		actor._process(0.7)
+		actor._process(2.2)
 		_equal(actor.current_frame, 0, id + " idle animation wraps")
 		_near_vector(game.camera.unproject_position(actor.global_position), actor.ground_position, 0.1,
 			id + " camera screen == ground coordinate")
 		_near_vector(game.ui.world_labels[id].get_global_rect().position,
 			actor.ground_position + Vector2(-110, -210), 0.1, id + " label follows camera feet")
-	_equal(game.floor_image.texture.resource_path, "res://assets/world/inn_hall.png", "actual floor artwork binding")
+	_equal(game.floor_image.texture.resource_path, "res://assets/world/inn_hall_night.png", "actual initial night artwork binding")
 	for point: Vector2 in [GameScript.SPAWN, Vector2(400, 650), Vector2(1200, 670), Vector2(825, 440)]:
 		var screen: Vector2 = game.camera.unproject_position(ActorScript.ground_to_world(point))
 		_near_vector(screen, point, 0.1, "screen_ground forward " + str(point))
@@ -218,7 +225,7 @@ func _test_keyboard_and_animation() -> void:
 		_fixture(Vector2(800, 750))
 		var seen: Dictionary = {}
 		_physical_key(row["key"], true)
-		for index: int in range(27):
+		for index: int in range(40):
 			_step(DT)
 			_assert_walkable("animated %s step %d" % [row["facing"], index])
 			seen[game.player.current_frame] = true
@@ -227,7 +234,7 @@ func _test_keyboard_and_animation() -> void:
 				"actual animation texture %s step %d" % [row["facing"], index])
 		var frame_ids: Array = seen.keys()
 		frame_ids.sort()
-		_equal(frame_ids, [0, 1, 2, 3], "all walking frames visited: " + str(row["facing"]))
+		_equal(frame_ids, [0, 1, 2, 3, 4, 5, 6, 7], "all walking frames visited: " + str(row["facing"]))
 		_physical_key(row["key"], false)
 	for sprint: bool in [false, true]:
 		_fixture(Vector2(800, 750))
@@ -1205,7 +1212,7 @@ func _finish() -> void:
 		"drain_seconds": (Time.get_ticks_usec() - drain_started) / 1000000.0,
 		"passed": passed - cleanup_passed, "failed": failed - cleanup_failed,
 	}))
-	print("GAME_COVERAGE: sections=%d/%d; production_pngs=38; route_runs=%d; route_samples=%d; layout_rects=%d; requests=%d; responses=%d; actual_choice_clicks=%d" % [
+	print("GAME_COVERAGE: sections=%d/%d; production_pngs=210; route_runs=%d; route_samples=%d; layout_rects=%d; requests=%d; responses=%d; actual_choice_clicks=%d" % [
 		completed.size(), SECTIONS.size(), route_runs, route_samples, layout_rects, requests.size(), responses.size(), clicked_choices.size()])
 	print("GAME_TESTS: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)

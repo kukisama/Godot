@@ -30,23 +30,39 @@ func setup(positions: Array[Vector2]) -> void:
 	for y in range(grid.region.size.y):
 		for x in range(grid.region.size.x):
 			var cell := Vector2i(x, y)
-			var free: bool = is_walkable(grid.get_point_position(cell))
+			var free: bool = is_floor_walkable(grid.get_point_position(cell))
 			grid.set_point_solid(cell, not free)
 			if free:
 				walkable_cells.append(cell)
 
 
-func is_walkable(point: Vector2) -> bool:
+func set_npc_positions(positions: Array[Vector2]) -> void:
+	npc_positions = positions.duplicate()
+
+
+func is_floor_walkable(point: Vector2, radius: float = PLAYER_RADIUS) -> bool:
 	if not Geometry2D.is_point_in_polygon(point, walk_polygon):
 		return false
 	for index in range(8):
-		var edge: Vector2 = point + Vector2.from_angle(index * TAU / 8.0) * PLAYER_RADIUS
+		var edge: Vector2 = point + Vector2.from_angle(index * TAU / 8.0) * radius
 		if not Geometry2D.is_point_in_polygon(edge, walk_polygon):
 			return false
+	return true
+
+
+func has_clear_sight(from: Vector2, to: Vector2) -> bool:
+	return _line_is_clear(from, to, true, 0.0)
+
+
+func _clear_of_npcs(point: Vector2, radius: float = PLAYER_RADIUS) -> bool:
 	for npc: Vector2 in npc_positions:
-		if point.distance_to(npc) < NPC_RADIUS + PLAYER_RADIUS:
+		if point.distance_to(npc) < NPC_RADIUS + radius:
 			return false
 	return true
+
+
+func is_walkable(point: Vector2) -> bool:
+	return is_floor_walkable(point) and _clear_of_npcs(point)
 
 
 func slide_move(from: Vector2, motion: Vector2) -> Vector2:
@@ -66,23 +82,29 @@ func slide_move(from: Vector2, motion: Vector2) -> Vector2:
 	return result
 
 
-func find_path(from: Vector2, target: Vector2) -> PackedVector2Array:
+func find_path(from: Vector2, target: Vector2, ignore_npcs: bool = false, radius: float = PLAYER_RADIUS) -> PackedVector2Array:
 	if walkable_cells.is_empty():
 		return PackedVector2Array()
+	# Furniture is static; residents are not. Refresh only when planning a route.
+	for cell: Vector2i in walkable_cells:
+		var point: Vector2 = grid.get_point_position(cell)
+		grid.set_point_solid(cell, not is_floor_walkable(point, radius) or (not ignore_npcs and not _clear_of_npcs(point, radius)))
 	var start: Vector2i = _nearest_cell(from)
 	var finish: Vector2i = _nearest_cell(target)
+	if start.x < 0 or finish.x < 0:
+		return PackedVector2Array()
 	var raw: PackedVector2Array = grid.get_point_path(start, finish)
 	if raw.is_empty():
 		return raw
 	# Keep the user's exact click when its final segment is safe.
-	if is_walkable(target) and _line_is_clear(raw[raw.size() - 1], target):
+	if _line_is_clear(raw[raw.size() - 1], target, ignore_npcs, radius):
 		raw.append(target)
 	var path := PackedVector2Array()
 	var anchor: Vector2 = from
 	var index: int = 0
 	while index < raw.size():
 		var furthest: int = index
-		while furthest + 1 < raw.size() and _line_is_clear(anchor, raw[furthest + 1]):
+		while furthest + 1 < raw.size() and _line_is_clear(anchor, raw[furthest + 1], ignore_npcs, radius):
 			furthest += 1
 		if anchor.distance_to(raw[furthest]) > 1.0:
 			path.append(raw[furthest])
@@ -92,9 +114,11 @@ func find_path(from: Vector2, target: Vector2) -> PackedVector2Array:
 
 
 func _nearest_cell(point: Vector2) -> Vector2i:
-	var result: Vector2i = walkable_cells[0]
+	var result := Vector2i(-1, -1)
 	var distance: float = INF
 	for cell: Vector2i in walkable_cells:
+		if grid.is_point_solid(cell):
+			continue
 		var candidate: float = grid.get_point_position(cell).distance_squared_to(point)
 		if candidate < distance:
 			distance = candidate
@@ -102,9 +126,10 @@ func _nearest_cell(point: Vector2) -> Vector2i:
 	return result
 
 
-func _line_is_clear(from: Vector2, to: Vector2) -> bool:
+func _line_is_clear(from: Vector2, to: Vector2, ignore_npcs: bool = false, radius: float = PLAYER_RADIUS) -> bool:
 	var steps: int = maxi(1, ceili(from.distance_to(to) / 6.0))
 	for index in range(1, steps + 1):
-		if not is_walkable(from.lerp(to, float(index) / float(steps))):
+		var point: Vector2 = from.lerp(to, float(index) / float(steps))
+		if not is_floor_walkable(point, radius) or (not ignore_npcs and not _clear_of_npcs(point, radius)):
 			return false
 	return true

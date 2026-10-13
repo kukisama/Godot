@@ -2,7 +2,7 @@
 
 ## 当前边界
 
-- **原 Dialogue / CapabilityPort 模块**只运行本地 GDScript、内存示例数据和预设文本；不联网、不保存聊天。真实 Azure 的原生 WAM/HTTP 在独立 helper 中，不进入本模块；没有环境密钥或 `.env`。
+- **CapabilityPort 演示分支**只运行本地 GDScript、内存示例数据和预设文本；不联网。`Dialogue.setup_azure(session)` 注入现有真实会话：未登录走原演示；登录后真实只读请求经 azure_session/bridge 交给 helper，结果直接在原对话显示，不放宽 demo 信封。没有环境密钥或 `.env`。
 - `azure.vm`、`azure.resource`、`ai.chat` 只是分派标识，不是连接配置。虚构名称、区域、规格、状态和标签均不代表真实世界；没有真实订阅 ID。
 - 关机流程只有预览。确认后仍返回 `executed=false`、`state_changed=false`、`side_effects=false`，不会修改示例状态，更不会操作真实资源。
 - 对话文字、用户输入和历史均为纯文本。UI 必须关闭 BBCode/富文本解析，不能把用户输入解释成标记。
@@ -68,6 +68,8 @@
 
 ## 菜单 choice IDs
 
+下表为未登录演示菜单。登录后米拉提供 `tenants/subscriptions/logout`，奥伦提供 `vms/choose_vm`，伊芙提供 `inspect/tags/target`（前两者均请求真实 `inspect`），菲恩提供 `resource_groups`；均可告别/返回。列表页用 `select_item` 明确选择当前目录/订阅/VM，用 `previous/next` 翻阅已加载项，`load_more` 请求 API 下一页。无自动选择订阅或 VM；真实模式禁用自由输入。查询错误不会回退演示。等待页的 `back` 取消共享 session 查询，迟到 ID/action/视图/上下文不再写入 NPC 历史；注销恢复原菜单。
+
 | NPC / 页面 | ID → 含义 |
 |---|---|
 | 米拉根页 | `guide` → 向导；`residents` → 人物介绍；`legend` → 旅店传说；`goodbye` → 道别 |
@@ -121,7 +123,7 @@
 
 ## 独立真实 Azure 接口
 
-`azure_bridge.gd : Node` 提供 `GetSettings()`、`GetContext()`（安全 JSON）、`Request(id, action, arguments_json)`，主线程信号 `Reply(json)` / `JournalChanged(json)`、异步 bootstrap 后的 `Initialized`，以及 `CancelLogin()` / `CancelConfirmation()` / `CancelQueries()`。`azure_session.gd` 管请求相关性/忙碌/上下文；`azure_panel.gd` 使用独立顶层 CanvasLayer，不占原四槽。无任意 REST 或 token getter。
+`azure_bridge.gd : Node` 提供 `GetSettings()`、`GetContext()`（安全 JSON）、`Request(id, action, arguments_json)`，主线程信号 `Reply(json)` / `JournalChanged(json)`、异步 bootstrap 后的 `Initialized`，以及 `CancelLogin()` / `CancelConfirmation()` / `CancelQueries()`。`azure_session.gd` 管请求相关性/忙碌/上下文；`request(action, args={}, request_id="") -> String` 返回已派发 ID 或空字符串，通过 `request_finished(response)` 向原对话提供关联后的安全 DTO 和可见状态。`azure_panel.gd` 保留公开配置和登录登记簿，真实写按钮不再渲染。无任意 REST 或 token getter。下面 prepare/execute 等仅保留 native 兼容契约，不是当前玩家入口。
 
 helper 固定为 `native/StarlightAzure.exe --pipe-v2`，只接受实际父进程私有 stdin/stdout 管道，argv 不含账户/令牌。UTF-8 JSON 按换行分帧，单包及发送队列上限 1MiB，原生队列最多 64；GD 保留字节缓冲/逐字节有界写入，关联 id/action，超时及 helper 退出释放 pending，迟到回复丢弃。EOF/父进程 HANDLE 终止触发取消和 worker join；不监听 localhost。独立编译的 `pipe-fixture.exe` 才有测试后端，生产 helper 无测试开关。协议不记录原包、stderr 或异常。
 
@@ -135,6 +137,7 @@ helper 固定为 `native/StarlightAzure.exe --pipe-v2`，只接受实际父进�
 | auto_login | enabled（必填布尔） | Context；保存下次启动偏好，关闭取消在途恢复但不注销当前账号 |
 | logout | 无 | Context；仅本应用 |
 | tenants / subscriptions / vms | more（可省略 false） | items、has_more、notice；不静默截断 |
+| resource_groups | more（可省略 false） | items:[{id,name,region,tags}]、has_more、notice；GET /subscriptions/{id}/resourcegroups?api-version=2021-04-01 |
 | select_subscription | id | Context；只能当前已返回列表 |
 | inspect | resource_id | Vm；当前清单完整目标 |
 | prepare | resource_id、action（start/deallocate） | Confirmation；不发 POST |
@@ -153,6 +156,8 @@ helper 固定为 `native/StarlightAzure.exe --pipe-v2`，只接受实际父进�
 无界面运行（`DisplayServer=headless`）的生产桥不启动 helper、不打开当前用户的 DPAPI 档案；所有 `Request` 返回 `HEADLESS_OFFLINE`，不认证、不访问 ARM、不写公开配置或个人档案。离线测试仅通过独立合成桥验证交互，正常 Windows 桌面运行使用上述原生实现。
 
 ## 独立测试
+
+`tests/test_npc_azure.gd` 加载真实主场景/Controls，使用 Fake bridge 验证四 NPC 真实只读路由、明确选择与分页、真实 viewport 按钮事件、错误不 fallback、取消/迟到回复和注销恢复演示；不进行真人认证、账户缓存读取或云请求。`test_azure.gd` 已更新为当前登记簿的配置、登录/取消/恢复、明确订阅选择、诊断换行、注销及无写按钮验收；原 native 写操作安全契约仍由共享核心与管道测试保留。
 
 使用项目内普通 Godot 4.7.2 的 `--headless --path <工程> --script res://tests/test_dialogue.gd`，无 .NET 要求。
 

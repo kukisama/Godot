@@ -105,7 +105,7 @@ func diagnostic_cases() -> void:
 			check(not JSON.stringify(reply).contains("CANARY") and not JSON.stringify(reply).contains("username@example.invalid"), mode + " WinRT sensitive text absent in pipe DTO")
 			check(bridge._context.account.is_empty() and bridge._pending.is_empty(), mode + " disconnected unlocked after error")
 			if mode == "provider":
-				check(reply.diagnostic.provider_error == 3400138760 and "0xCAA20008" in reply.message, "numeric provider error intact")
+				check(reply.diagnostic.provider_error == 0xCAA20008 and "0xCAA20008" in reply.message, "numeric provider error intact")
 		bridge.queue_free()
 		await process_frame
 		await create_timer(0.25).timeout

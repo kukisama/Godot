@@ -27,6 +27,7 @@ struct FakeHttp:Http {
         else if(url.find("virtualMachines/fixture-vm?")!=std::string::npos){put(r.body,"id",vm);put(r.body,"location","fixture-region");J p;put(p,"provisioningState","Succeeded");put(r.body,"properties",p);}
         else if(url.find("/tenants?")!=std::string::npos){A a;J v;put(v,"tenantId",tenant);put(v,"displayName","Fixture directory");a.Append(v);put(r.body,"value",a);put(r.body,"nextLink",nextlink);}
         else if(url.find("/subscriptions?")!=std::string::npos){A a;J v;put(v,"subscriptionId",sub);put(v,"tenantId",tenant);put(v,"displayName","Fixture subscription");a.Append(v);put(r.body,"value",a);put(r.body,"nextLink",nextlink);}
+        else if(url.find("/resourcegroups?")!=std::string::npos){A a;J v;put(v,"id","/subscriptions/"+sub+"/resourceGroups/fixture-rg");put(v,"name","fixture-rg");put(v,"location","fixture-region");J tags;put(tags,"environment","fixture");put(v,"tags",tags);a.Append(v);put(r.body,"value",a);put(r.body,"nextLink",nextlink);}
         else put(r.body,"status","Succeeded");if(empty_list&&r.body.HasKey(L"value"))put(r.body,"value",A());return r;
     }
 };

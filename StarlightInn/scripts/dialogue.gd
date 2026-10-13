@@ -28,6 +28,25 @@ var port: CapabilityPort = CapabilityPort.new()
 
 var _selected_target: String = ""
 var _session_generation: int = 0
+var azure: Node
+var _azure_pending: String = ""
+var _azure_action: String = ""
+var _azure_sequence: int = 0
+var _azure_generation: int = -1
+var _list_action: String = ""
+var _list_index: int = 0
+
+
+func setup_azure(session: Node) -> void:
+	azure = session
+	_azure_generation = int(azure.context.get("generation", 0))
+	azure.changed.connect(_on_azure_changed)
+	azure.request_finished.connect(_on_azure_response)
+	_on_azure_changed()
+
+
+func real_mode() -> bool:
+	return azure != null and azure.connected()
 
 
 func _ready() -> void:
@@ -65,7 +84,7 @@ func open_for(id: String) -> bool:
 
 
 func choose(choice_id: String) -> void:
-	if not is_open or busy:
+	if not is_open or (busy and not (real_mode() and choice_id == "back")):
 		return
 	var selected: Dictionary = {}
 	for choice: Dictionary in choices:
@@ -78,15 +97,20 @@ func choose(choice_id: String) -> void:
 		close()
 		return
 	if choice_id == "back":
+		if not _azure_pending.is_empty():
+			_cancel_pending()
 		_selected_target = ""
 		_show_root()
 		changed.emit()
 		return
 	_record("旅人", selected["label"])
+	if real_mode():
+		_choose_azure(choice_id)
+		return
 	if npc_id == "oren" and page == "targets" and PREVIEW_TARGETS.has(choice_id):
 		_selected_target = PREVIEW_TARGETS[choice_id]
 		page = "confirm"
-		text = "【本地演示数据】选中的是 %s（running）。下一步仅预览关机步骤：未执行任何真实操作，也不会改变示例状态。确认要看预览吗？返回话题会取消这个选择。" % _selected_target
+		text = "【本地演示数据】嗯，名字再看一眼：%s（running）。下一步仅预览关机步骤：未执行任何真实操作，也不会改变示例状态。确认要看预览吗？返回话题会取消这个选择。" % _selected_target
 		choices = [{"id": "confirm_preview", "label": "确认：仅看关机预览"}, {"id": "back", "label": "取消选择，返回话题"}]
 		_record_npc(text)
 		changed.emit()
@@ -103,9 +127,9 @@ func choose(choice_id: String) -> void:
 		"mira":
 			match choice_id:
 				"guide":
-					_show_page("guide", "用 WASD 或方向键慢慢走，也可以点地面走近。靠近住客后按 E 或 Enter 交谈，鼠标也能选择话题。聊天时旅人会停下脚步；返回话题不会告别，Esc 由大厅界面处理。别急，旅店的灯会等你。")
+					_show_page("guide", "先认认路，不急着把所有事记住。用 WASD 或方向键慢慢走，也可以点地面走近。靠近住客后按 E 或 Enter 交谈，鼠标也能选择话题。聊天时旅人会停下脚步；返回话题不会告别，Esc 由大厅界面处理。没想好先找谁，在我这儿坐一会儿也不算白来。")
 				"residents":
-					_show_page("residents", "炉火旁的奥伦把虚构云灯记得一清二楚；星术桌边的伊芙爱给资源做小便签；长椅上的菲恩总给未完的故事留座。三人的能力都是本地演示，没有真实 AI 或 Azure 连接。想歇歇的话，我就在吧台。")
+					_show_page("residents", "想把事情理清楚，找炉边的奥伦；想问个明白，找书桌边的伊芙。只是想有人接话，就去找菲恩——夸他的时候小心，夸早了能唱到明天。未登录时三人的能力都是本地演示，没有真实 AI 或 Azure 连接。想歇歇的话，我就在吧台。")
 				"legend":
 					_show_page("legend", "据说第一盏星灯，是一位迷路的制灯匠留下的。他找不到回家的星，就造了一盏等人回来的灯。后来这里成了旅店。我们不问谁走得最远，只问汤还要不要添一点。")
 		"oren":
@@ -115,7 +139,7 @@ func choose(choice_id: String) -> void:
 				"shutdown_preview":
 					page = "targets"
 					_selected_target = ""
-					text = "【本地演示数据】先从两盏 running 的虚构云灯里挑一盏。此页只做选择，尚未发送请求；停止的 inn-sleeping-03 不在预览目标中。"
+					text = "【本地演示数据】慢一点，是为了少重来一遍。先从两盏 running 的虚构云灯里挑一盏。此页只做选择，尚未发送请求；停止的 inn-sleeping-03 不在预览目标中。"
 					choices = [{"id": "target_lantern", "label": "inn-lantern-01 · running"}, {"id": "target_library", "label": "inn-library-02 · running"}, {"id": "back", "label": "返回话题"}]
 					_record_npc(text)
 					changed.emit()
@@ -126,7 +150,7 @@ func choose(choice_id: String) -> void:
 				"inspect", "tags":
 					_begin_request("azure.resource", choice_id, {"target_id": "inn-lantern-01"})
 				"explain_resource":
-					_show_page("explain_resource", "【本地预设讲解】把资源想成一间有编号的客房：区域是它所在的街区，规格像房间大小，状态是门上的挂牌，标签则是你自己贴的便签。这里讲的是虚构样本，不是任何真实资源的鉴定结果。")
+					_show_page("explain_resource", "【本地预设讲解】我换个好懂的说法！把资源想成一间有编号的客房：区域是它所在的街区，规格像房间大小，状态是门上的挂牌，标签则是你自己贴的便签。听不懂就叫停，是我一下说太多，不是你的问题。这里讲的是虚构样本，不是任何真实资源的鉴定结果。")
 		"finn":
 			match choice_id:
 				"story":
@@ -138,7 +162,7 @@ func choose(choice_id: String) -> void:
 
 
 func send_message(message: String) -> void:
-	if not is_open or busy or npc_id != "finn" or not allow_input:
+	if real_mode() or not is_open or busy or npc_id != "finn" or not allow_input:
 		return
 	var trimmed: String = message.strip_edges()
 	if trimmed.is_empty():
@@ -171,6 +195,19 @@ func close() -> void:
 func _show_root() -> void:
 	page = "root"
 	_selected_target = ""
+	if real_mode():
+		allow_input = false
+		text = "【真实 Azure · 只读 · 未调用 AI】\n" + _voice("real_greeting") + "\n" + azure.context_text()
+		match npc_id:
+			"mira":
+				choices = [{"id": "tenants", "label": "读取真实目录"}, {"id": "subscriptions", "label": "读取并选择订阅"}, {"id": "logout", "label": "注销本应用，恢复演示"}, {"id": "goodbye", "label": "告别"}]
+			"oren":
+				choices = [{"id": "vms", "label": "读取真实 VM"}, {"id": "choose_vm", "label": "翻阅并选择已加载 VM"}, {"id": "goodbye", "label": "告别"}]
+			"eve":
+				choices = [{"id": "inspect", "label": "读取真实 VM 属性"}, {"id": "tags", "label": "读取真实 VM 标签"}, {"id": "target", "label": "查看当前选中目标"}, {"id": "goodbye", "label": "告别"}]
+			"finn":
+				choices = [{"id": "resource_groups", "label": "读取真实资源组"}, {"id": "goodbye", "label": "告别"}]
+		return
 	allow_input = npc_id == "finn"
 	text = NpcCatalog.get_npc(npc_id)["greeting"]
 	match npc_id:
@@ -188,7 +225,7 @@ func _show_page(next_page: String, message: String) -> void:
 	page = next_page
 	text = message
 	choices = [{"id": "back", "label": "返回话题"}]
-	allow_input = npc_id == "finn"
+	allow_input = npc_id == "finn" and not real_mode()
 	_record_npc(message)
 	changed.emit()
 
@@ -197,7 +234,7 @@ func _begin_request(capability: String, action: String, arguments: Dictionary = 
 	var generation: int = _session_generation
 	busy = true
 	page = "waiting"
-	text = "【本地演示】传话铃轻轻响了，正在准备本地演示数据或预设回复……"
+	text = "【本地演示】" + _voice("waiting") + "\n正在准备本地演示数据或预设回复……"
 	choices = [{"id": "back", "label": "返回话题（等待回复中）"}]
 	last_response = {}
 	var issued_id: String = port.request(npc_id, capability, action, arguments)
@@ -223,11 +260,182 @@ func _on_response(response: Dictionary) -> void:
 
 
 func _cancel_pending() -> void:
+	if not _azure_pending.is_empty():
+		_azure_pending = ""
+		azure.close_view()
 	if not pending_request_id.is_empty():
 		port.cancel(pending_request_id)
 	pending_request_id = ""
 	busy = false
 	_selected_target = ""
+
+
+func _choose_azure(id: String) -> void:
+	if page == "azure_list":
+		match id:
+			"previous":
+				_list_index = maxi(0, _list_index - 1)
+				_show_azure_list()
+			"next":
+				_list_index += 1
+				_show_azure_list()
+			"load_more":
+				_list_index = _azure_items().size()
+				_begin_azure(_list_action, {"more": true})
+			"select_item":
+				var items: Array = _azure_items()
+				if _list_index < 0 or _list_index >= items.size():
+					return
+				var item: Dictionary = items[_list_index]
+				match _list_action:
+					"tenants":
+						_begin_azure("login", {"tenant": item.id, "browser": false, "select_account": false})
+					"subscriptions":
+						_begin_azure("select_subscription", {"id": item.id})
+					"vms":
+						azure.select_vm(str(item.resource_id))
+						_show_page("result", "【真实 Azure · 只读】已选择 VM，未执行云操作。\n" + _voice("selected") + "\n" + _vm_text(azure.selected))
+		return
+	match id:
+		"tenants", "subscriptions", "vms", "resource_groups":
+			_list_action = id
+			_list_index = 0
+			_begin_azure(id)
+		"choose_vm":
+			_list_action = "vms"
+			_list_index = 0
+			_show_azure_list()
+		"inspect", "tags":
+			_begin_azure("inspect", {"resource_id": azure.selected.get("resource_id", "")})
+		"target":
+			_show_page("result", "【真实 Azure · 只读】\n" + _voice("result") + "\n" + _vm_text(azure.selected))
+		"logout":
+			_begin_azure("logout")
+
+
+func _begin_azure(action: String, args: Dictionary = {}) -> void:
+	if azure.busy:
+		_show_page("result", "【真实 Azure】已有请求处理中，请稍后重试；没有使用演示数据。")
+		return
+	if action in ["vms", "resource_groups", "inspect"] and str(azure.context.get("subscription_id", "")).is_empty():
+		_show_page("result", "【真实 Azure】" + _voice("subscription_required") + "\n没有使用演示数据。")
+		return
+	if action == "inspect" and azure.selected.is_empty():
+		_show_page("result", "【真实 Azure】" + _voice("target_required") + "\n没有使用演示数据。")
+		return
+	_azure_sequence += 1
+	_azure_pending = "npc-%d-%d" % [_session_generation, _azure_sequence]
+	_azure_action = action
+	pending_request_id = _azure_pending
+	last_request = {"request_id": _azure_pending, "npc_id": npc_id, "capability": "azure.read", "action": action, "arguments": args.duplicate(true)}
+	last_response = {}
+	busy = true
+	page = "waiting"
+	allow_input = false
+	text = "【真实 Azure · 只读】" + _voice("waiting") + "\n请求处理中，可返回取消本次等待。"
+	choices = [{"id": "back", "label": "取消等待，返回话题"}]
+	changed.emit()
+	if not is_open or _azure_pending.is_empty():
+		return
+	var issued: String = azure.request(action, args, _azure_pending)
+	if issued.is_empty():
+		_azure_pending = ""
+		pending_request_id = ""
+		busy = false
+		_show_page("result", "【真实 Azure】" + _voice("failure") + "\n" + azure.message)
+
+
+func _azure_items() -> Array:
+	return {"tenants": azure.tenants, "subscriptions": azure.subscriptions, "vms": azure.vms, "resource_groups": azure.resource_groups}.get(_list_action, [])
+
+
+func _show_azure_list() -> void:
+	page = "azure_list"
+	allow_input = false
+	var items: Array = _azure_items()
+	text = "【真实 Azure · 只读】%s\n%s\n" % [_voice("list"), azure.message]
+	choices = []
+	if not items.is_empty():
+		_list_index = clampi(_list_index, 0, items.size() - 1)
+		var item: Dictionary = items[_list_index]
+		text += "已加载 %d 项，当前第 %d 项\n" % [items.size(), _list_index + 1]
+		if _list_action == "vms":
+			text += _vm_text(item)
+		elif _list_action == "resource_groups":
+			text += "资源组：%s\nID：%s\n区域：%s\n标签：%s" % [item.get("name", ""), item.get("id", ""), item.get("region", ""), JSON.stringify(item.get("tags", {}))]
+		else:
+			text += "名称：%s\nID：%s" % [item.get("name", ""), item.get("id", "")]
+		if _list_action != "resource_groups":
+			choices.append({"id": "select_item", "label": "选择%s：%s" % [{"tenants": "目录", "subscriptions": "订阅", "vms": "VM"}[_list_action], item.get("name", "")]})
+		if _list_index > 0:
+			choices.append({"id": "previous", "label": "上一项"})
+		if _list_index + 1 < items.size():
+			choices.append({"id": "next", "label": "下一项"})
+	else:
+		text += _voice("empty") + "\n当前页没有结果；没有使用演示数据。"
+	if _list_index + 1 >= items.size() and azure.more.get(_list_action, false):
+		choices.append({"id": "load_more", "label": "读取 API 下一页"})
+	choices.append({"id": "back", "label": "返回话题"})
+	_record_npc(text)
+	changed.emit()
+
+
+func _vm_text(vm: Dictionary) -> String:
+	if vm.is_empty():
+		return "尚未选择真实 VM，请找奥伦读取并选择。"
+	return "VM：%s\nResourceId：%s\n资源组：%s\n区域：%s · 规格：%s\n状态：%s · Provisioning：%s · OS：%s\n刷新：%s\n标签：%s" % [vm.get("name", ""), vm.get("resource_id", ""), vm.get("resource_group", ""), vm.get("region", ""), vm.get("size", ""), vm.get("power_state", "unknown"), vm.get("provisioning_state", ""), vm.get("os_type", ""), vm.get("last_refresh", ""), JSON.stringify(vm.get("tags", {}))]
+
+
+func _on_azure_response(response: Dictionary) -> void:
+	if not is_open or _azure_pending.is_empty() or response.get("id") != _azure_pending or response.get("action") != _azure_action:
+		return
+	_azure_pending = ""
+	pending_request_id = ""
+	busy = false
+	_azure_generation = int(azure.context.get("generation", 0))
+	last_response = response.duplicate(true)
+	last_response.request_id = response.id
+	last_response.npc_id = npc_id
+	if not response.get("ok", false):
+		_show_page("result", "【真实 Azure 请求失败 · 未使用演示数据】\n" + _voice("failure") + "\n" + str(response.get("message", "")))
+	elif _azure_action in ["tenants", "subscriptions", "vms", "resource_groups"]:
+		_show_azure_list()
+	elif _azure_action == "inspect":
+		_show_page("result", "【真实 Azure · 只读】\n" + _voice("result") + "\n" + azure.message + "\n" + _vm_text(azure.selected))
+	else:
+		_show_root()
+		text += "\n" + azure.message
+		_record_npc(text)
+		changed.emit()
+
+
+func _on_azure_changed() -> void:
+	var generation: int = int(azure.context.get("generation", 0))
+	if generation == _azure_generation:
+		# A registration view can cancel the shared session without a reply.
+		if not _azure_pending.is_empty() and not azure.busy:
+			_azure_pending = ""
+			pending_request_id = ""
+			busy = false
+			if is_open:
+				_show_page("result", "【真实 Azure】" + _voice("cancelled") + "\n请求已取消，请重新选择话题。")
+		return
+	_azure_generation = generation
+	var cancelled_query: bool = not _azure_pending.is_empty()
+	_azure_pending = ""
+	_cancel_pending()
+	_session_generation += 1
+	last_request = {}
+	last_response = {}
+	if is_open:
+		_show_root()
+		if cancelled_query:
+			text += "\n原请求已取消，上下文已变化，请重新选择话题。"
+		changed.emit()
+
+
+func _voice(kind: String) -> String:
+	return NpcCatalog.service_line(npc_id, kind)
 
 
 func _record_npc(message: String) -> void:

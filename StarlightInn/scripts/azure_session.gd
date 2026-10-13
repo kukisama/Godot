@@ -2,6 +2,7 @@ extends Node
 ## Separate from CapabilityPort: real ARM state never enters demo envelopes.
 signal changed
 signal journal_changed
+signal request_finished(response: Dictionary)
 
 var bridge: Node
 var context: Dictionary = {"generation": 0, "account": "", "tenant_id": "", "tenant_name": "", "subscription_id": "", "subscription_name": ""}
@@ -15,10 +16,11 @@ var busy: bool = false
 var tenants: Array = []
 var subscriptions: Array = []
 var vms: Array = []
+var resource_groups: Array = []
 var selected: Dictionary = {}
 var confirmation: Dictionary = {}
 var operations: Array = []
-var more: Dictionary = {"tenants": false, "subscriptions": false, "vms": false}
+var more: Dictionary = {"tenants": false, "subscriptions": false, "vms": false, "resource_groups": false}
 var _sequence: int = 0
 var _pending: Dictionary = {}
 var _view_generation: int = 0
@@ -85,7 +87,9 @@ func sync_context() -> void:
 		confirmation = {}
 		selected = {}
 		vms = []
+		resource_groups = []
 		more.vms = false
+		more.resource_groups = false
 		if not connected():
 			tenants = []
 			subscriptions = []
@@ -97,9 +101,9 @@ func context_text() -> String:
 	return "真实 Azure / %s\n目录：%s\n订阅：%s" % [context.account, context.get("tenant_name", ""), context.get("subscription_name", "未选择") if not str(context.get("subscription_id", "")).is_empty() else "未选择"]
 
 
-func request(action: String, args: Dictionary = {}) -> void:
+func request(action: String, args: Dictionary = {}, request_id: String = "") -> String:
 	if bridge == null:
-		return
+		return ""
 	if busy:
 		if restoring and action in ["login", "logout", "configure", "auto_login"]:
 			bridge.call("CancelLogin")
@@ -108,29 +112,32 @@ func request(action: String, args: Dictionary = {}) -> void:
 			busy = false
 			restoring = false
 		else:
-			return
-	if action in ["vms", "inspect", "prepare"] and (not connected() or str(context.get("subscription_id", "")).is_empty()):
+			return ""
+	if action in ["vms", "resource_groups", "inspect", "prepare"] and (not connected() or str(context.get("subscription_id", "")).is_empty()):
 		message = "请先在米拉登记簿登录并选择订阅；此处没有演示资源。"
 		changed.emit()
-		return
+		return ""
 	if action in ["inspect", "prepare"] and selected.is_empty():
 		message = "请先在奥伦账簿选择真实 VM。"
 		changed.emit()
-		return
+		return ""
 	if action == "execute" and confirmation.is_empty():
-		return
+		return ""
 	if action in ["login", "logout", "select_subscription", "configure", "restore"]:
 		_view_generation += 1
 		confirmation = {}
 		selected = {}
 		vms = []
+		resource_groups = []
+		more.vms = false
+		more.resource_groups = false
 		if action in ["login", "logout", "configure"]:
 			subscriptions = []
-			more = {"tenants": false, "subscriptions": false, "vms": false}
+			more = {"tenants": false, "subscriptions": false, "vms": false, "resource_groups": false}
 		if action == "logout" or args.get("select_account", false):
 			tenants = []
 	_sequence += 1
-	var id: String = "azure-%d" % _sequence
+	var id: String = "azure-%d" % _sequence if request_id.is_empty() else request_id
 	_pending[id] = {"action": action, "view": _view_generation, "generation": context.get("generation", 0), "more": args.get("more", false)}
 	busy = true
 	restoring = action == "restore"
@@ -140,6 +147,7 @@ func request(action: String, args: Dictionary = {}) -> void:
 		confirmation = {}
 	bridge.call("Request", id, action, JSON.stringify(args))
 	changed.emit()
+	return id
 
 
 func set_auto_login(enabled: bool) -> void:
@@ -219,30 +227,42 @@ func _reply(json: String) -> void:
 	restoring = false
 	var incoming: Dictionary = raw.get("context", context)
 	if incoming.get("generation", 0) < context.get("generation", 0):
+		_finish_reply(raw, "上下文已变化，请重新查询。")
 		changed.emit()
 		return
 	if not entry.action in ["login", "logout", "select_subscription", "configure", "restore", "auto_login", "execute", "operations", "resume"] and incoming.get("generation") != entry.generation:
+		_finish_reply(raw, "上下文已变化，请重新查询。")
 		changed.emit()
 		return
 	if incoming.get("generation") != context.get("generation"):
 		confirmation = {}
 		selected = {}
 		vms = []
+		resource_groups = []
+		more.vms = false
+		more.resource_groups = false
 	context = incoming
 	preferences = raw.get("preferences", preferences)
 	message = str(raw.get("message", ""))
 	if not raw.get("ok", false):
 		message = "%s：%s" % [raw.get("code", "REQUEST_FAILED"), message]
 		confirmation = {}
+		_finish_reply(raw)
 		changed.emit()
 		return
 	var data: Variant = raw.get("data")
 	match entry.action:
+		"login", "restore":
+			message = "已登录：%s。下一步请与米拉读取订阅，并明确选择订阅。" % context.get("account", "")
+		"select_subscription":
+			message = "已选择订阅：%s。可找奥伦查询并选择真实 VM、伊芙读取属性、菲恩查询资源组。" % context.get("subscription_name", "")
+		"logout":
+			message = "已注销本应用，四位住客恢复本地演示。"
 		"configure":
 			settings = data
-		"tenants", "subscriptions", "vms":
+		"tenants", "subscriptions", "vms", "resource_groups":
 			var items: Array = data.get("items", [])
-			var destination: Array = tenants if entry.action == "tenants" else (subscriptions if entry.action == "subscriptions" else vms)
+			var destination: Array = {"tenants": tenants, "subscriptions": subscriptions, "vms": vms, "resource_groups": resource_groups}[entry.action]
 			if not entry.more:
 				destination.clear()
 			destination.append_array(items)
@@ -260,7 +280,16 @@ func _reply(json: String) -> void:
 			message = "%s：%s" % [data.get("state", "unknown"), data.get("message", "")]
 		"operations", "resume":
 			operations = data
+	_finish_reply(raw)
 	changed.emit()
+
+
+func _finish_reply(raw: Dictionary, error_message: String = "") -> void:
+	var response: Dictionary = raw.duplicate(true)
+	response.message = message if error_message.is_empty() else error_message
+	if not error_message.is_empty():
+		response.ok = false
+	request_finished.emit(response)
 
 
 func _journal(json: String) -> void:

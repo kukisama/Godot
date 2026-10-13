@@ -48,7 +48,7 @@ func setup(model: Node) -> void:
 	layout.add_child(context_label)
 	var tabs := HBoxContainer.new()
 	layout.add_child(tabs)
-	for row: Array in [["mira", "米拉 · Azure 登记簿"], ["oren", "奥伦 · 云务账簿"], ["eve", "伊芙 · 真实资源鉴定"], ["operations", "真实操作记录"]]:
+	for row: Array in [["mira", "米拉 · Azure 登记簿"]]:
 		var target: String = row[0]
 		_tabs.append(button(tabs, row[1], func() -> void: open_for(target)))
 	var scroll := ScrollContainer.new()
@@ -69,7 +69,7 @@ func open_for(npc: String) -> void:
 		return
 	session.cancel_confirmation()
 	session.sync_context()
-	page = npc
+	page = "mira"
 	visible = true
 	var focus: Control = get_viewport().gui_get_focus_owner()
 	if focus != null:
@@ -101,16 +101,7 @@ func refresh() -> void:
 	title.text = {"mira": "米拉的 Azure 登记簿", "oren": "奥伦的云务账簿", "eve": "伊芙的真实资源鉴定", "operations": "真实操作记录 · 独立于当前订阅"}[page]
 	context_label.text = session.context_text()
 	text(session.message)
-	if not session.confirmation.is_empty():
-		_confirmation()
-	elif page == "mira":
-		_registration()
-	elif page == "oren":
-		_ledger()
-	elif page == "eve":
-		_inspection()
-	else:
-		_journal()
+	_registration()
 
 
 func _registration() -> void:
@@ -135,7 +126,7 @@ func _registration() -> void:
 	button(row, "登录 / 继续授权（WAM 首选）", func() -> void: session.request("login", {"browser": false, "select_account": false}), session.busy and not session.restoring)
 	button(row, "换账户（明确选择）", func() -> void: session.request("login", {"browser": false, "select_account": true}), session.busy and not session.restoring)
 	text("仅使用原生 Windows WAM；此版本不提供浏览器备用，也不监听 localhost。")
-	button(row, "取消登录", func() -> void: session.bridge.call("CancelLogin"), not session.busy)
+	button(row, "取消登录", session.close_view, not session.busy)
 	button(content, "注销本应用（不会退出 Windows / 撤销云操作）", func() -> void: session.request("logout"), (session.busy and not session.restoring) or not (session.connected() or session.restoring or session.preferences.get("has_identity", false)))
 	var reads := HBoxContainer.new()
 	content.add_child(reads)
@@ -175,11 +166,6 @@ func _ledger() -> void:
 		var id: String = vm.resource_id
 		button(content, "%s | RG %s | %s | %s | %s\n刷新 %s" % [vm.name, vm.resource_group, vm.region, vm.size, vm.get("power_state", "unknown"), vm.last_refresh], func() -> void: session.select_vm(id), session.busy)
 	_inspection()
-	if not session.selected.is_empty():
-		var actions := HBoxContainer.new()
-		content.add_child(actions)
-		button(actions, "启动…（下一步核对真实目标）", func() -> void: session.prepare("start"), session.busy)
-		button(actions, "停止并解除分配…（下一步核对）", func() -> void: session.prepare("deallocate"), session.busy)
 
 
 func matches(vm: Dictionary) -> bool:
@@ -200,7 +186,6 @@ func _confirmation() -> void:
 	var identity: Dictionary = c.context
 	var vm: Dictionary = c.target
 	text("真实操作确认（不是离线预览）\n账户：%s\n目录：%s · %s\n订阅：%s · %s\n资源组：%s\nVM：%s\nResourceId：%s\n动作：%s · 当前状态：%s\n%s\n确认有效至：%s\nAzure 受理后，关闭对话、切订阅或退出游戏都不撤销云操作。" % [identity.account, identity.tenant_name, identity.tenant_id, identity.subscription_name, identity.subscription_id, vm.resource_group, vm.name, vm.resource_id, c.action, vm.power_state, c.impact, c.expires])
-	button(content, "确认启动" if c.action == "start" else "确认停止并解除分配", session.execute, session.busy)
 	button(content, "取消：不提交真实操作", func() -> void: session.cancel_confirmation(); refresh())
 
 
@@ -219,9 +204,9 @@ func _journal() -> void:
 func text(value: String) -> Label:
 	var label := Label.new()
 	label.text = value
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.custom_minimum_size.x = 1200
+	label.custom_minimum_size.x = 0
 	content.add_child(label)
 	return label
 

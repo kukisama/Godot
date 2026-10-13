@@ -27,6 +27,20 @@
 			"command": "$ErrorActionPreference = 'Stop'; $root = '${workspaceFolder}\\StarlightInn'; New-Item -ItemType Directory -Path \"$root\\play\\native\" -Force | Out-Null; Copy-Item \"$root\\qa\\native-build\\StarlightAzure.exe\" \"$root\\native\\StarlightAzure.exe\" -Force; Copy-Item \"$root\\qa\\native-build\\StarlightAzure.exe\" \"$root\\play\\native\\StarlightAzure.exe\" -Force; foreach ($doc in @('README.md','API.md','AAD_SETUP.md')) { Copy-Item \"$root\\$doc\" \"$root\\play\\$doc\" -Force }; if (-not (Test-Path \"$root\\play\\azure-settings.json\")) { Copy-Item \"$root\\azure-settings.json\" \"$root\\play\\azure-settings.json\" }; Compress-Archive -Path \"$root\\play\" -DestinationPath \"$root\\StarlightInn-Windows.zip\" -Force; Get-ChildItem \"$root\\play\" -Recurse -File | Format-Table Name,Length; Get-Item \"$root\\StarlightInn-Windows.zip\" | Format-Table Name,Length",
 			"isBackground": false,
 			"problemMatcher": []
+		},
+		{
+			"label": "验证星灯旅店启动",
+			"type": "shell",
+			"command": "$root = '${workspaceFolder}\\StarlightInn'; $p = Start-Process \"$root\\play\\StarlightInn.exe\" -ArgumentList '--headless','--max-fps','60','--quit-after','180' -Wait -PassThru -RedirectStandardOutput \"$root\\qa\\rebuild-startup.log\" -RedirectStandardError \"$root\\qa\\rebuild-startup-error.log\"; Get-Content \"$root\\qa\\rebuild-startup.log\"; Get-Content \"$root\\qa\\rebuild-startup-error.log\"; if ($p.ExitCode -ne 0 -or (Select-String \"$root\\qa\\rebuild-startup-error.log\" -Pattern 'ERROR:|SCRIPT ERROR' -Quiet)) { throw 'Exported game startup failed' }; Write-Output ('GAME_EXIT_CODE=' + $p.ExitCode)",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "构建星灯旅店原生桥接",
+			"type": "shell",
+			"command": "& '${workspaceFolder}\\StarlightInn\\native\\build.ps1'",
+			"isBackground": false,
+			"problemMatcher": []
 		}
 	]
 }

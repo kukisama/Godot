@@ -1,4 +1,5 @@
 #include "common.hpp"
+#include "async_wait.hpp"
 #include <winrt/Windows.Security.Authentication.Web.Core.h>
 #include <winrt/Windows.Security.Credentials.h>
 #include <webauthenticationcoremanagerinterop.h>
@@ -15,12 +16,7 @@ void check_wam_status(uint32_t status,std::optional<uint32_t> error){
 }
 namespace {
 template<class Op> auto await(Op const& op,Cancel const& c){
-    try {
-        while(op.Status()==winrt::Windows::Foundation::AsyncStatus::Started){c.check();
-            // Timed WinRT wait, not an unbounded .get(); reader can cancel concurrently.
-            op.wait_for(std::chrono::milliseconds(20));}
-        c.check();return op.GetResults();
-    }catch(...){try{op.Cancel();}catch(...){}throw;}
+    return await_native(op,c);
 }
 std::string actual_tenant(std::string const& authority){
     const std::string prefix="https://login.microsoftonline.com/";
@@ -30,8 +26,8 @@ std::string actual_tenant(std::string const& authority){
 }
 WebTokenRequest request(WebAccountProvider const& provider,Settings const& s,std::string const& tenant,bool interactive){
     return native_call(NativeStage::CreateRequest,[&]{
-    WebTokenRequest r(provider,L"https://management.azure.com/user_impersonation openid profile",winrt::to_hstring(s.client),interactive?WebTokenRequestPromptType::ForceAuthentication:WebTokenRequestPromptType::Default);
-    r.Properties().Insert(L"resource",L"https://management.azure.com");
+    // Same scope-only WAM v2 shape as the working AzureRM-rust client.
+    WebTokenRequest r(provider,L"https://management.azure.com/user_impersonation openid profile offline_access",winrt::to_hstring(s.client),interactive?WebTokenRequestPromptType::ForceAuthentication:WebTokenRequestPromptType::Default);
     r.Properties().Insert(L"authority",winrt::to_hstring("https://login.microsoftonline.com/"+tenant+"/"));
     r.Properties().Insert(L"validateAuthority",L"yes");r.Properties().Insert(L"wam_compat",L"2.0");
     return r;});

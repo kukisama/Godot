@@ -9,12 +9,19 @@ var actor_id: String = ""
 var ground_position := Vector2.ZERO
 var facing: String = "down"
 var moving: bool = false
+var conversing: bool = false
 var is_player: bool = false
 var sprite: Sprite3D
 var shadow: Sprite3D
 var frames: Dictionary = {}
 var animation_clock: float = 0.0
 var idle_clock: float = 0.0
+var animation_rate: float = 14.0
+var gesture: String = ""
+var gesture_time: float = 0.0
+var gesture_clock: float = 0.0
+var ambient_tint := Color.WHITE
+var highlighted: bool = false
 var current_frame: int = -1
 var current_direction: String = ""
 
@@ -48,15 +55,23 @@ func setup(id: String, player: bool = false) -> void:
 	if player:
 		for direction: String in ["down", "left", "right", "up"]:
 			var strip: Array[Texture2D] = []
-			for index in range(4):
+			for index in range(8):
 				strip.append(load("res://assets/sprites/traveler_%s_%d.png" % [direction, index]))
 			frames[direction] = strip
 	else:
-		var strip: Array[Texture2D] = []
-		for index in range(2):
-			strip.append(load("res://assets/sprites/%s_%d.png" % [id, index]))
-		frames["idle"] = strip
-		idle_clock = float(id.hash() % 100) / 25.0
+		for direction: String in ["down", "left", "right", "up"]:
+			var strip: Array[Texture2D] = []
+			for index in range(8):
+				strip.append(load("res://assets/sprites/%s_%s_%d.png" % [id, direction, index]))
+			frames[direction] = strip
+		for action: String in ["idle", "wave", "celebrate"]:
+			var strip: Array[Texture2D] = []
+			var first: int = 0 if action == "idle" else (4 if action == "wave" else 6)
+			var count: int = 4 if action == "idle" else 2
+			for index in range(count):
+				strip.append(load("res://assets/sprites/%s_%d.png" % [id, first + index]))
+			frames[action] = strip
+		idle_clock = float(posmod(id.hash(), 100)) / 25.0
 	_update_frame()
 
 
@@ -65,10 +80,15 @@ func set_ground_position(point: Vector2) -> void:
 	position = ground_to_world(point)
 
 
-func set_motion(motion: Vector2) -> void:
+func set_motion(motion: Vector2, delta: float = 1.0 / 60.0) -> void:
 	var was_moving: bool = moving
 	moving = motion.length_squared() > 0.001
 	if moving:
+		conversing = false
+		gesture_time = 0.0
+		var speed: float = motion.length() / maxf(delta, 0.001)
+		var stride: float = 128.0 if is_player else 90.0
+		animation_rate = clampf(speed / stride * 8.0, 6.0, 24.0)
 		if absf(motion.x) > absf(motion.y):
 			facing = "right" if motion.x > 0.0 else "left"
 		else:
@@ -78,22 +98,75 @@ func set_motion(motion: Vector2) -> void:
 	_update_frame()
 
 
+func set_conversation(active: bool, look_at: Vector2 = Vector2.ZERO) -> void:
+	conversing = active
+	set_motion(Vector2.ZERO)
+	gesture_time = 0.0
+	if active:
+		var direction: Vector2 = look_at - ground_position
+		if direction.length_squared() > 0.001:
+			if absf(direction.x) > absf(direction.y):
+				facing = "right" if direction.x > 0.0 else "left"
+			else:
+				facing = "down" if direction.y > 0.0 else "up"
+	_update_frame()
+
+
 func set_highlight(active: bool) -> void:
+	highlighted = active
+	_refresh_tint()
+
+
+func set_ambient_tint(value: Color) -> void:
+	ambient_tint = value
+	_refresh_tint()
+
+
+func _refresh_tint() -> void:
 	if sprite != null:
-		sprite.modulate = Color(1.12, 1.10, 1.0) if active else Color.WHITE
+		sprite.modulate = ambient_tint * (Color(1.12, 1.10, 1.0) if highlighted else Color.WHITE)
+
+
+func play_gesture(action: String, duration: float = 1.7) -> void:
+	if is_player or not frames.has(action):
+		return
+	set_motion(Vector2.ZERO)
+	gesture = action
+	gesture_time = duration
+	gesture_clock = 0.0
+	_update_frame()
 
 
 func _process(delta: float) -> void:
 	animation_clock += delta
 	idle_clock += delta
+	gesture_clock += delta
+	gesture_time = maxf(0.0, gesture_time - delta)
 	_update_frame()
+	if sprite != null:
+		var lift: float = 0.6 * sin(idle_clock * 2.0)
+		if moving:
+			lift = absf(sin(animation_clock * animation_rate * TAU / 8.0)) * 1.2
+		elif gesture_time > 0.0 and gesture == "celebrate" and actor_id in ["eve", "finn"]:
+			lift = maxf(0.0, sin(gesture_clock * PI / 0.8)) * (14.0 if actor_id == "finn" else 9.0)
+		sprite.position = CAMERA_UP * ((56.0 if is_player else 68.0) + lift) * sprite.pixel_size
+		shadow.scale = Vector3.ONE * (1.0 - maxf(0.0, lift) * 0.012)
+		shadow.modulate.a = 1.0 - maxf(0.0, lift) * 0.02
 
 
 func _update_frame() -> void:
 	if sprite == null or frames.is_empty():
 		return
-	var direction: String = facing if is_player else "idle"
-	var frame: int = (int(animation_clock * 9.0) % 4 if moving else 1) if is_player else (1 if fmod(idle_clock, 4.8) > 4.1 else 0)
+	var direction: String = facing if moving or is_player or conversing else (gesture if gesture_time > 0.0 else "idle")
+	var frame: int = 1 if is_player or conversing else 0
+	if moving:
+		frame = int(animation_clock * animation_rate) % frames[direction].size()
+	elif not is_player and not conversing:
+		if gesture_time > 0.0:
+			frame = int(gesture_clock * 7.0) % frames[direction].size()
+		else:
+			var phase: float = fmod(idle_clock, 7.2)
+			frame = 0 if phase < 5.0 else (1 if phase < 5.18 else (2 if phase < 6.25 else 3))
 	if current_frame != frame or current_direction != direction:
 		current_frame = frame
 		current_direction = direction

@@ -7,8 +7,8 @@
 - 一间中世纪幻想旅店大厅：暖金灯火、孔雀蓝夜色、木石结构与星灯。
 - HD-2D 风格：固定镜头、像素人物、纵深层次、地面投影、局部灯火与浮尘。
 - 玩家可移动，与不同位置的 NPC 交谈；有分支选项、返回、取消、输入与聊天记录。
-- 保留严格离线能力接口；另增同一 Godot.NET 工程的用户委托真实 Azure 入口，不连接真实 AI。
-- 演示返回明确本地数据；真实返回独立 mode/UI，默认空 ClientId、不自动登录。
+- 保留严格离线能力接口；普通 Godot + GDScript 通过现有原生 helper 提供用户委托真实 Azure，只读、不连接真实 AI。
+- 未登录保留完整演示；登录后四 NPC 在原对话框显示真实 mode 返回，显式选择订阅/VM并可分页；注销恢复演示。
 
 ## 素材先行
 
@@ -39,8 +39,8 @@
 ## 能力扩展约定
 
 统一请求包含 `request_id`、`npc_id`、`capability`、`action`、`arguments`；统一响应包含 `ok`、`mode`、`message`、`data`、`error`。
-原对话 UI 只依赖 demo 接口与信号；CapabilityPort 不接受真实 mode/副作用。
-真实能力走 AzureBridge（MSAL.NET WAM）、AzureCore、azure_session/azure_panel。米拉登记、奥伦账簿、伊芙鉴定各增独立入口；菲恩不变。完整资源 ID、一次限时确认、提交前重读、原上下文操作记录；预览不是授权。
+CapabilityPort 不接受真实 mode/副作用；Dialogue 将演示与真实 session 请求分开关联。
+真实能力走现有 azure_session/azure_bridge 和原生 WAM helper，不加 localhost 服务。HUD 登记簿配置/登录；米拉查询目录并明确选择订阅，奥伦查询/分页/选择真实 VM，伊芙读取同一完整 ResourceId 的属性/标签，菲恩查询资源组。结果、错误、返回取消均在原对话框；自由输入仅离线演示可用。真实 start/deallocate/prepare/execute UI 移除，native 旧写契约保留但不暴露玩家入口；预览不是授权。
 只保存公开 ClientId/初始目录，token 留桥内；不取全局 CLI/default Windows 账户，不自动升权。关闭/注销/退出不撤销已受理操作；不确定提交不重发，完成需实例状态独立证明。
 
 ## 完成判定

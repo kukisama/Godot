@@ -111,7 +111,7 @@ func _test_catalog() -> void:
 	_expect(NpcCatalog.IDS == ["mira", "oren", "eve", "finn"], "catalog IDs and order")
 	var names: Array[String] = ["米拉", "奥伦", "伊芙", "菲恩"]
 	var titles: Array[String] = ["旅店主人", "云务管家", "星术鉴定师", "吟游诗人"]
-	var positions: Array[Vector2] = [Vector2(825, 392), Vector2(356, 505), Vector2(1215, 567), Vector2(417, 785)]
+	var positions: Array[Vector2] = [Vector2(825, 392), Vector2(356, 505), Vector2(1159, 592), Vector2(417, 785)]
 	var labels: Array[String] = ["旅店向导", "云端投影 · 演示", "资源鉴定 · 演示", "AI 对话 · 演示"]
 	var colors: Array[Color] = [Color("f4c878"), Color("65d7e7"), Color("bda2f4"), Color("94d699")]
 	for index: int in range(NpcCatalog.IDS.size()):

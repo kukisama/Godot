@@ -19,7 +19,7 @@ func _run() -> void:
 	var headings: Dictionary = {}
 	for direction: String in ["left", "right"]:
 		var offsets: Array[float] = []
-		for index in range(4):
+		for index in range(8):
 			var path: String = "res://assets/sprites/traveler_%s_%d.png" % [direction, index]
 			var image := Image.new()
 			var decoded: Error = image.load_png_from_buffer(FileAccess.get_file_as_bytes(path))
@@ -37,17 +37,17 @@ func _run() -> void:
 	# A full set of repeated cycles must keep the image facing the travel direction.
 	for direction: String in ["left", "right"]:
 		var motion := Vector2.LEFT if direction == "left" else Vector2.RIGHT
-		actor.set_motion(motion)
+		actor.set_motion(motion * 224.0 / 60.0)
 		var seen: Dictionary = {}
 		for index in range(120):
-			actor.set_motion(motion)
+			actor.set_motion(motion * 224.0 / 60.0)
 			actor._process(1.0 / 60.0)
 			_check(actor.facing == direction, "held direction stays stable", direction, actor.facing)
 			var offset: float = float(headings.get(actor.sprite.texture.resource_path, 0.0))
 			_check(offset < -2.0 if direction == "left" else offset > 2.0,
 				"actual displayed frame faces " + direction, direction, {"frame": actor.current_frame, "offset": offset})
 			seen[actor.current_frame] = true
-		_check(seen.size() == 4, "all stride phases still animate", 4, seen.keys())
+		_check(seen.size() == 8, "all stride phases still animate", 8, seen.keys())
 		actor.set_motion(Vector2.ZERO)
 		actor._process(0.5)
 		_check(actor.facing == direction, "stopping keeps orientation", direction, actor.facing)

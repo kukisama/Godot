@@ -1,4 +1,5 @@
 #include "native_fake.hpp"
+#include "async_wait.hpp"
 #include <filesystem>
 #include <iostream>
 #include <thread>
@@ -12,6 +13,10 @@ using inn::test::sub;
 using inn::test::tenant;
 using inn::test::vm;
 unsigned passed=0,failed=0;
+winrt::Windows::Foundation::IAsyncOperation<int> delayed_result(){
+    co_await winrt::resume_after(std::chrono::milliseconds(80));
+    co_return 42;
+}
 struct FailingProfiles:MemoryProfiles {bool fail=false;void save(Profile const& p)override{if(fail)throw Error("PROFILE_IO");MemoryProfiles::save(p);}};
 void check(bool ok,const char* label){if(ok)++passed;else{++failed;std::cerr<<"FAIL "<<label<<"\n";}}
 template<class F>void reject(F f,const char* label){bool caught=false;try{f();}catch(...){caught=true;}check(caught,label);}
@@ -25,6 +30,11 @@ struct Suite {FakeIdentity identity;FakeHttp http;MemoryProfiles profiles;Clock:
 }
 int main(){winrt::init_apartment(winrt::apartment_type::multi_threaded);
     const auto other=inn::test::other;
+    {auto op=delayed_result();bool duplicate=false;try{op.wait_for(std::chrono::milliseconds(1));op.wait_for(std::chrono::milliseconds(1));}catch(winrt::hresult_error const& e){duplicate=static_cast<uint32_t>(e.code().value)==0x80000018u;}check(duplicate,"old repeated WinRT wait reproduces E_ILLEGAL_DELEGATE_ASSIGNMENT");op.Cancel();}
+    {Cancel c;check(await_native(delayed_result(),c)==42,"single Completed handler delivers delayed native result");}
+    {Cancel c;c.flag->store(true);reject([&]{await_native(delayed_result(),c);},"native wait preserves cancellation");}
+    {Cancel c;c.deadline=Clock::now();reject([&]{await_native(delayed_result(),c);},"native wait preserves deadline");}
+    {Suite s;check(!boolean(s.call("resource_groups"),"ok"),"resource groups need authenticated context");s.connected();auto before=s.http.gets;auto reply=s.call("resource_groups");auto data=object(reply,"data");check(boolean(reply,"ok")&&data.GetNamedArray(L"items").Size()==1,"resource groups mapped from real-query contract");auto group=data.GetNamedArray(L"items").GetAt(0).GetObject();check(text(group,"name")=="fixture-rg"&&text(group,"region")=="fixture-region"&&text(object(group,"tags"),"environment")=="fixture","resource group safe DTO includes identity location tags");check(s.http.gets==before+1&&s.http.posts==0,"resource groups query sends one GET and zero POST");s.http.nextlink="https://management.azure.com/subscriptions/"+sub+"/resourcegroups?api-version=2021-04-01&$skiptoken=fixture";check(boolean(object(s.call("resource_groups"),"data"),"has_more"),"resource groups expose service pagination");check(boolean(s.call("resource_groups",parse("{\"more\":true}")),"ok"),"resource groups next page remains bound to subscription");s.http.nextlink="https://evil.invalid/next";check(!boolean(s.call("resource_groups"),"ok"),"resource groups reject external nextLink");s.http.forbidden=true;check(text(s.call("resource_groups"),"code")=="FORBIDDEN","resource groups surface 403 without demo fallback");}
     check(NativeIdentity::available(),"WAM factory QI only; no token request");
     for(auto stage:{NativeStage::WinrtInit,NativeStage::WamFactory,NativeStage::FindProvider,NativeStage::CreateRequest,NativeStage::ParentWindow,NativeStage::RequestToken,NativeStage::SilentToken,NativeStage::ValidateResponse,NativeStage::FindAccount,NativeStage::SignOut,NativeStage::InvalidateCache,NativeStage::HelperBoot}){
         Suite s;s.core.configure({sub,"organizations"});s.identity.on_login=[stage](Cancel const&){native_call(stage,[]{throw winrt::hresult_error(E_ACCESSDENIED,L"CANARY_SECRET_TOKEN user@example.invalid client-guid raw-response");});};
