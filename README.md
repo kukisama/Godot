@@ -1,5 +1,13 @@
 # Godot Windows 开发环境安装记录
 
+新电脑请先阅读 [`INITIALIZE.md`](./INITIALIZE.md)，或直接运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Initialize-Windows.ps1
+```
+
+该脚本按顺序安装本仓库需要的开发软件；C++ Build Tools 和 Windows SDK 可能弹出管理员授权窗口。
+
 ## 小游戏：《林间拾光》
 
 2026-10-08 新增鼠标小游戏，用户已试玩确认“可以玩，还不错”。
@@ -8,6 +16,18 @@
 - Godot 项目：[`ForestGlow/project.godot`](./ForestGlow/project.godot)。
 - 玩法、生成素材、切图和测试说明：[`ForestGlow/README.md`](./ForestGlow/README.md)。
 - 以下为此前环境安装记录；安装脚本未因游戏开发修改。
+
+## 三个项目的 Release 导出
+
+VS Code「运行任务」选择 **发布三个游戏 Release 到 play**，会导入资源并将三个 Windows x64 Release 主程序统一输出到根目录：
+
+- [`play/ForestGlow.exe`](./play/ForestGlow.exe)
+- [`play/HollowBell.exe`](./play/HollowBell.exe)
+- [`play/StarlightInn.exe`](./play/StarlightInn.exe)
+
+任务运行 [`Build-Release.ps1`](./Build-Release.ps1)，使用已安装的 Godot 4.7.2 普通编辑器及 `StarlightInn/tools/godot-standard/templates/` 中的匹配 Windows 导出模板；导入和导出日志写入 `qa/release/`。构建过程不启动游戏。
+
+完整发布要求 VS2022 x64 C++ Build Tools 和 Windows SDK。任务先编译星灯旅店原生组件；缺少工具链或编译失败会立即报错，不跳过此步骤。三个游戏导出后，自动将最新 `StarlightAzure.exe` 放入根目录的 `play/native/`，并复制星灯旅店说明文档及公开配置（保留已有玩家配置）。真实 Azure 登录和查询仍需按 [`AAD_SETUP.md`](./StarlightInn/AAD_SETUP.md) 配置并由用户手动认证。
 
 ---
 

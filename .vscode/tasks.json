@@ -18,7 +18,7 @@
 		{
 			"label": "试玩星灯旅店",
 			"type": "shell",
-			"command": "& '${workspaceFolder}\\StarlightInn\\Play.ps1'",
+			"command": "& '${workspaceFolder}\\play\\StarlightInn.exe' --rendering-driver opengl3_angle",
 			"problemMatcher": []
 		},
 		{
@@ -41,6 +41,14 @@
 			"command": "& '${workspaceFolder}\\StarlightInn\\native\\build.ps1'",
 			"isBackground": false,
 			"problemMatcher": []
+		},
+		{
+			"label": "发布三个游戏 Release 到 play",
+			"type": "shell",
+			"command": "& '${workspaceFolder}\\Build-Release.ps1'",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
 		}
 	]
 }
