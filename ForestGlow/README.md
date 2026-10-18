@@ -4,7 +4,7 @@
 
 ## 打开
 
-- **直接玩**：双击上一级目录的 [`play/ForestGlow.exe`](../play/ForestGlow.exe)，游戏资源已嵌入 EXE。
+- **直接玩**：双击本目录的 [`play/ForestGlow.exe`](./play/ForestGlow.exe)，游戏资源已嵌入 EXE。
 - **编辑项目**：在 Godot 中导入 [`project.godot`](./project.godot)，点击编辑器的运行按钮。
 - 本机实测版本为 Godot `4.7.2`。项目不含 C#、联网服务或运行时 API 密钥。
 
@@ -42,6 +42,6 @@
 - [`tests/test_game.gd`](./tests/test_game.gd) 向真实 Viewport 注入鼠标事件，不直接调用采集回调来代替输入验证。
 - 2026-10-08 实测：**31 项检查，0 失败**。覆盖资源、开始、三种计分、连击、空点、右键、静音、暂停、弹窗阻挡、胜负、重玩、失焦暂停、生成槽位和完整一局。
 - 运行测试：Godot 控制台入口以本目录为 `--path`，添加 `--headless --script res://tests/test_game.gd -- --test-mode`；测试不会改写个人最佳分数。
-- [`export_presets.cfg`](./export_presets.cfg) 已配置 `Windows Desktop`，产物位于 `../play/ForestGlow.exe`。重新导出需安装与编辑器版本匹配的 Windows 模板。
+- [`export_presets.cfg`](./export_presets.cfg) 已配置 `Windows Desktop`，产物位于 `play/ForestGlow.exe`。重新导出需安装与编辑器版本匹配的 Windows 模板。
 - Windows 导出成功；显式 ANGLE 的有界窗口运行退出码为 0。本机原生 OpenGL 不足时会自动回退 ANGLE，此项不代表其他机器的性能测试。
 - 用户已实际试玩并反馈“可以玩，还不错”。当前版本保留，不继续扩展玩法。

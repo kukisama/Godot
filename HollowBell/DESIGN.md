@@ -92,6 +92,6 @@
 
 测试与制作工具仅用于开发，不导出到游戏。音乐、美术均为本项目原创/生成素材；运行不需要网络、账号或 API 密钥。
 
-Windows 交付统一为 `../play/HollowBell.exe`，即 `C:\Users\kukisama\Downloads\Scripts\Godot\play\HollowBell.exe`；构建与桌面 PID 路径校验使用同一位置。旧素材测试仍只转换初版的 28 个输出，另查 4 张新版图集存在且未被覆盖；新版动作测试代码覆盖物理/渲染 60/120 Hz 四组合，不等于已运行通过。
+Windows 交付统一为 `play/HollowBell.exe`，即 `C:\Users\kukisama\Downloads\Scripts\Godot\HollowBell\play\HollowBell.exe`；构建与桌面 PID 路径校验使用同一位置。旧素材测试仍只转换初版的 28 个输出，另查 4 张新版图集存在且未被覆盖；新版动作测试代码覆盖物理/渲染 60/120 Hz 四组合，不等于已运行通过。
 
 2026-10-09 用户明确本轮只做静态验证，不启动游戏或运行功能测试，真实表现由用户真机验收。构建工具默认 Static，Build 只导出，不自动启动 EXE；运行时验收须另行显式要求。旧报告不能作为新版功能通过证据。

@@ -4,21 +4,21 @@
 		{
 			"label": "试玩林间拾光",
 			"type": "shell",
-			"command": "& '${workspaceFolder}\\play\\ForestGlow.exe' --rendering-driver opengl3_angle --log-file '${workspaceFolder}\\qa\\desktop-task.log'",
+			"command": "$qa = '${workspaceFolder}\\ForestGlow\\qa'; New-Item -ItemType Directory -Path $qa -Force | Out-Null; & '${workspaceFolder}\\ForestGlow\\play\\ForestGlow.exe' --rendering-driver opengl3_angle --log-file \"$qa\\desktop-task.log\"",
 			"isBackground": true,
 			"problemMatcher": []
 		},
 		{
 			"label": "试玩钟誓 · 第一关",
 			"type": "shell",
-			"command": "& '${workspaceFolder}\\play\\HollowBell.exe' --rendering-driver opengl3_angle --log-file '${workspaceFolder}\\HollowBell\\qa\\desktop-play.log'",
+			"command": "& '${workspaceFolder}\\HollowBell\\play\\HollowBell.exe' --rendering-driver opengl3_angle --log-file '${workspaceFolder}\\HollowBell\\qa\\desktop-play.log'",
 			"isBackground": true,
 			"problemMatcher": []
 		},
 		{
 			"label": "试玩星灯旅店",
 			"type": "shell",
-			"command": "& '${workspaceFolder}\\play\\StarlightInn.exe' --rendering-driver opengl3_angle",
+			"command": "& '${workspaceFolder}\\StarlightInn\\Play.ps1'",
 			"problemMatcher": []
 		},
 		{

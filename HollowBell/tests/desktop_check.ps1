@@ -30,7 +30,7 @@ public static class HollowBellNative {
 
 [void][HollowBellNative]::SetProcessDPIAware()
 $process = Get-Process -Id $ProcessId
-$expected = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\play\HollowBell.exe'))
+$expected = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\play\HollowBell.exe'))
 if (-not [string]::Equals($process.Path, $expected, [StringComparison]::OrdinalIgnoreCase)) {
     throw "Refusing to control a process outside the expected delivery: $expected"
 }

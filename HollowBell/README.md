@@ -4,8 +4,8 @@
 
 ## 开始游戏
 
-- 直接运行 `../play/HollowBell.exe`；兼容图形驱动入口为 `../play/Start-HollowBell.cmd`。
-- VS Code「运行任务」选择 **试玩钟誓 · 第一关**（运行 `play/HollowBell.exe`）。
+- 直接运行 `play/HollowBell.exe`；兼容图形驱动入口为 `play/Start-HollowBell.cmd`。
+- VS Code「运行任务」选择 **试玩钟誓 · 第一关**（运行 `HollowBell/play/HollowBell.exe`）。
 - 编辑工程：用 Godot 打开本目录的 `project.godot`。
 - 运行不需要联网、账号或 Godot 编辑器。交付时可复制 `play/HollowBell.exe`。
 
@@ -73,7 +73,7 @@
 - `tests/test_audio_runtime.gd`：真实引擎混音、循环、静音、暂停衰减与快速曲目切换。
 - `tests/render_capture.gd`：真实 ANGLE 渲染截图，位于 `qa/screens`。
 
-`tools/verify_build.ps1` 默认 Static 阶段，只解析脚本、核对资源引用与图集文件头；Build 阶段无窗口导出 `../play/HollowBell.exe`，**默认不执行打包程序**。运行时检查必须显式选择 Render / Regression 或给 Build 传入 `RunPackagedCheck`；本轮按用户要求不执行这些入口。`tests/desktop_check.ps1` 只接受交付 EXE 的 PID，`QuickRoll` 对应 C 键。
+`tools/verify_build.ps1` 默认 Static 阶段，只解析脚本、核对资源引用与图集文件头；Build 阶段无窗口导出 `play/HollowBell.exe`，**默认不执行打包程序**。运行时检查必须显式选择 Render / Regression 或给 Build 传入 `RunPackagedCheck`；本轮按用户要求不执行这些入口。`tests/desktop_check.ps1` 只接受交付 EXE 的 PID，`QuickRoll` 对应 C 键。
 
 本轮只做静态/语法检查与导出；**不启动游戏、不执行功能回归或桌面验收**。静态结果见 `qa/player-v2-static.json`；旧版通关、截图和音频报告不能作为新版动作已通过的证据。
 

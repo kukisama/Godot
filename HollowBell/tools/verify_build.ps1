@@ -109,7 +109,7 @@ elseif ($Phase -eq 'Regression') {
     Invoke-Engine 'player-v2-final' @('--headless', '--audio-driver', 'Dummy', '--path', $project, '--script', 'res://tests/test_player_v2.gd') -SummaryPattern '(?m)^PLAYER V2: matrix children=4, parent checks=[1-9]\d*, failures=0; res://qa/player-v2-results\.json\r?$'
 }
 else {
-    $delivery = [IO.Path]::GetFullPath((Join-Path $project '..\play'))
+    $delivery = [IO.Path]::GetFullPath((Join-Path $project 'play'))
     [void][IO.Directory]::CreateDirectory($delivery)
     $exe = Join-Path $delivery 'HollowBell.exe'
     Invoke-Engine 'export-verified' @('--headless', '--path', $project, '--export-release', 'Windows Desktop', $exe)

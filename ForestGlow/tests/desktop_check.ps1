@@ -26,7 +26,7 @@ public static class ForestGlowNative {
 
 [void][ForestGlowNative]::SetProcessDPIAware()
 $process = Get-Process -Id $ProcessId
-$expected = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\play\ForestGlow.exe'))
+$expected = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\play\ForestGlow.exe'))
 if ($process.Path -ne $expected) { throw 'Refusing to operate on an unrelated process.' }
 $window = $process.MainWindowHandle
 if ($window -eq [IntPtr]::Zero) { throw 'Game window is not ready.' }

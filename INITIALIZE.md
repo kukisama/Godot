@@ -53,15 +53,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Build-Release.ps1
 
 1. 编译并验证星灯旅店的 C++ 原生组件。
 2. 导入三个 Godot 项目的资源。
-3. 导出三个 Windows x64 Release。
-4. 将游戏、原生组件、公开配置和说明复制到 `play\`。
+3. 导出三个 Windows x64 Release 到各自项目的 `play\` 目录。
+4. 将星灯旅店原生组件、公开配置和说明复制到 `StarlightInn\play\`。
 
 完整产物：
 
 ```text
-play\
+ForestGlow\play\
   ForestGlow.exe
+HollowBell\play\
   HollowBell.exe
+  Start-HollowBell.cmd
+StarlightInn\play\
   StarlightInn.exe
   native\StarlightAzure.exe
   azure-settings.json
@@ -70,7 +73,7 @@ play\
   AAD_SETUP.md
 ```
 
-复制星灯旅店时必须复制整个 `play\` 目录，不能只复制 `StarlightInn.exe`。
+复制星灯旅店时必须复制整个 `StarlightInn\play\` 目录，不能只复制 `StarlightInn.exe`。
 
 ## 常见问题
 
